@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create account — SERP Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--accent:#2563eb;--accent-dk:#1d4ed8;--surface:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--red:#dc2626;--red-lt:#fef2f2;}
+    body{font-family:'Inter',-apple-system,"Segoe UI",sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--text);
+      background:radial-gradient(1200px 600px at 20% -10%,#1e3a8a 0%,transparent 55%),radial-gradient(900px 500px at 100% 110%,#1d4ed8 0%,transparent 50%),linear-gradient(135deg,#0b1729 0%,#0e1b34 100%);}
+    .card{background:var(--surface);width:100%;max-width:520px;border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35),0 6px 16px rgba(0,0,0,.12);}
+    .head{background:linear-gradient(135deg,#1e40af,#2563eb);padding:15px 30px;color:#fff;display:flex;align-items:center;gap:13px;}
+    .logo{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .logo svg{width:20px;height:20px;color:#fff;}
+    .head .brand{font-size:11px;font-weight:600;letter-spacing:.05em;opacity:.85;text-transform:uppercase;}
+    .head h1{font-size:19px;font-weight:800;letter-spacing:-.02em;margin-top:1px;}
+    .head p{display:none;}
+    .body{padding:28px 44px 34px;}
+    label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 7px;}
+    .field{margin-bottom:15px;}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    @media(max-width:480px){.row{grid-template-columns:1fr;}}
+    .inp{position:relative;}
+    .inp svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);pointer-events:none;}
+    input{width:100%;border:1.5px solid var(--border);border-radius:11px;padding:12px 13px 12px 40px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s;background:#fbfcfe;}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgb(37 99 235/.1);background:#fff;}
+    .hint{font-size:11px;color:var(--muted);margin-top:5px;}
+    button{width:100%;margin-top:10px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-size:15px;font-weight:700;padding:14px;cursor:pointer;font-family:inherit;transition:background .15s;box-shadow:0 6px 18px rgb(37 99 235/.28);}
+    button:hover{background:var(--accent-dk);}
+    .err{background:var(--red-lt);color:var(--red);border:1px solid #fca5a5;border-radius:10px;padding:11px 13px;font-size:13px;margin-bottom:16px;display:flex;gap:8px;align-items:center;}
+    .alt{text-align:center;font-size:13.5px;color:var(--muted);margin-top:18px;}
+    .alt a{color:var(--accent);font-weight:600;text-decoration:none;}
+    .alt a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+      <div>
+        <div class="brand">SERP Agent</div>
+        <h1>Create your account</h1>
+      </div>
+    </div>
+    <div class="body">
+      {% if error %}<div class="err">⚠ {{ error }}</div>{% endif %}
+      <form method="POST" action="/signup">
+        <div class="row">
+          <div class="field">
+            <label>Full name</label>
+            <div class="inp">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input type="text" name="name" value="{{ name or '' }}" required autofocus placeholder="Jane Doe" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <div class="inp">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+              <input type="email" name="email" value="{{ email or '' }}" required placeholder="you@company.com" />
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <div class="inp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" name="password" required minlength="6" placeholder="At least 6 characters" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Organization name</label>
+          <div class="inp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+            <input type="text" name="company" value="{{ company or '' }}" placeholder="Acme Inc." />
+          </div>
+        </div>
+        <div class="field">
+          <label>Organization code</label>
+          <div class="inp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
+            <input type="text" name="code" required placeholder="Provided by your admin" />
+          </div>
+          <div class="hint">Ask your admin for the team sign-up code.</div>
+        </div>
+        <button type="submit">Create account</button>
+      </form>
+      <div class="alt">Already have an account? <a href="/login">Sign in</a></div>
+    </div>
+  </div>
+</body>
+</html>

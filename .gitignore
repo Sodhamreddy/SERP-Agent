@@ -1,0 +1,24 @@
+# Build / packaging artifacts (do NOT commit — these bloated the repo to GBs)
+build/
+dist/
+SERP-Agent-Portable/
+*.zip
+*.exe
+# Old Playwright bundle (removed)
+browsers/
+browser_profile/
+
+# Python
+__pycache__/
+*.pyc
+
+# Runtime data & secrets (auto-seeded / created at runtime — keep out of git)
+config.json
+users.json
+tickets.json
+clients.json
+keywords.json
+serp_agent.log
+results/*.xlsx
+results/*.csv
+results/_progress*.json

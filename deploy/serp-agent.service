@@ -1,0 +1,20 @@
+[Unit]
+Description=SERP Agent (Flask + Waitress)
+After=network.target
+
+[Service]
+Type=simple
+User=serp
+Group=serp
+WorkingDirectory=/opt/serp-agent
+Environment=HOST=127.0.0.1
+Environment=PORT=7030
+Environment=WAITRESS_THREADS=8
+ExecStart=/opt/serp-agent/venv/bin/python serve.py
+Restart=always
+RestartSec=3
+# Long scans can run for many minutes — don't let systemd kill on stop too fast.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
