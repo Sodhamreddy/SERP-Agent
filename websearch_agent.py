@@ -844,7 +844,9 @@ def run_websearch_agent(
         for attempt in range(1, RETRY_COUNT + 2):
             try:
                 _respect_rate_limit(logger)
-                results = search_keyword(keyword)
+                # Early-exit once the client's domain is found: parse_ranking only uses
+                # results up to the match, so fetching deeper pages is pure waste.
+                results = search_keyword(keyword, stop_domain=target_domain)
                 search_ok = True
                 rate_limited = False
                 logger.info("         Provider returned %d organic results", len(results))
