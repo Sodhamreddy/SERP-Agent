@@ -105,13 +105,20 @@ def _position_label(position: int) -> str:
     return f"{page}.{pos}"
 
 
-def _call_ollama(prompt: dict[str, Any], timeout: int = 45) -> dict[str, Any] | None:
+def _call_ollama(prompt: dict[str, Any], timeout: int = 45,
+                 max_tokens: int | None = None) -> dict[str, Any] | None:
+    options: dict[str, Any] = {"temperature": 0.2}
+    if max_tokens:
+        options["num_predict"] = max_tokens
     payload = {
         "model": _ollama_model(),
         "prompt": json.dumps(prompt, ensure_ascii=False),
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0.2},
+        "options": options,
+        # Keep the model resident between turns so we don't pay cold-load latency
+        # on every chat message.
+        "keep_alive": "30m",
     }
     try:
         response = requests.post(f"{_ollama_url()}/api/generate", json=payload, timeout=timeout)
@@ -128,16 +135,20 @@ def _reasoning_backend() -> str:
     return configured or "gemini"
 
 
-def _call_gemini_json(prompt: dict[str, Any], timeout: int = 45) -> dict[str, Any] | None:
+def _call_gemini_json(prompt: dict[str, Any], timeout: int = 45,
+                      max_tokens: int | None = None) -> dict[str, Any] | None:
     """Reasoning call to Gemini (JSON mode, NO web grounding). Returns dict or None."""
     import gemini_agent
 
     api_key = gemini_agent._get_api_key()
     if not gemini_agent._is_configured_api_key(api_key):
         return None
+    gen_cfg: dict[str, Any] = {"temperature": 0.2, "responseMimeType": "application/json"}
+    if max_tokens:
+        gen_cfg["maxOutputTokens"] = max_tokens
     payload = {
         "contents": [{"parts": [{"text": json.dumps(prompt, ensure_ascii=False)}]}],
-        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+        "generationConfig": gen_cfg,
     }
     try:
         response = requests.post(
@@ -154,15 +165,21 @@ def _call_gemini_json(prompt: dict[str, Any], timeout: int = 45) -> dict[str, An
         return None
 
 
-def _call_llm(prompt: dict[str, Any], timeout: int = 45) -> dict[str, Any] | None:
+def _call_llm(prompt: dict[str, Any], timeout: int = 45,
+              max_tokens: int | None = None) -> dict[str, Any] | None:
     """Reasoning dispatcher: primary backend with automatic fallback to the other.
 
     Default primary is Gemini (JSON mode); if it is unavailable/quota-limited (returns
     None), fall back to the local Ollama model so the agent keeps working offline.
+
+    `max_tokens` caps the generated output so short replies (chat synthesis) return
+    quickly instead of letting the model ramble up to its default ceiling.
     """
     if _reasoning_backend() == "gemini":
-        return _call_gemini_json(prompt, timeout) or _call_ollama(prompt, timeout)
-    return _call_ollama(prompt, timeout) or _call_gemini_json(prompt, timeout)
+        return (_call_gemini_json(prompt, timeout, max_tokens)
+                or _call_ollama(prompt, timeout, max_tokens))
+    return (_call_ollama(prompt, timeout, max_tokens)
+            or _call_gemini_json(prompt, timeout, max_tokens))
 
 
 def build_agent_plan(keywords: list[tuple[str, str]], target_domain: str) -> dict[str, Any]:
@@ -251,7 +268,7 @@ def analyze_with_ollama(rows: list[dict[str, Any]], target_domain: str) -> dict[
             ],
         },
     }
-    return _call_llm(prompt, timeout=90)
+    return _call_llm(prompt, timeout=40, max_tokens=900)
 
 
 def _serpapi_results(keyword: str) -> list[SearchResult]:
@@ -532,12 +549,16 @@ def _ollama_web_search_results(keyword: str) -> list[SearchResult]:
     return results
 
 
-def _serper_results(keyword: str) -> list[SearchResult]:
-    """Use Serper.dev (Google Search API) for REAL Google rankings — up to 100
-    organic results in a SINGLE request, so it sees page 4, 5, 10, etc.
+def _serper_results(keyword: str, stop_domain: str = "") -> list[SearchResult]:
+    """Use Serper.dev (Google Search API) for REAL Google rankings, paging to depth so
+    it sees page 4, 5, 10, etc.
 
-    Positions are Google's true organic order. Free tier: 2,500 searches, one credit
-    per call. Requires just one key (SERPER_API_KEY) — no Google Cloud console.
+    Serper returns ~10 organic results per call (its `num` param is not honored beyond
+    one page on most accounts), so reaching the full depth means paging. To keep rank
+    checks fast we EARLY-EXIT as soon as `stop_domain` is found — a site that ranks well
+    returns in one page (~3s); only a deep/absent site pays for the full pagination.
+
+    Positions are Google's true organic order. One Serper credit per page fetched.
     """
     api_key = os.getenv("SERPER_API_KEY", "").strip() or _config_value("SERPER_API_KEY")
     if not api_key:
@@ -546,46 +567,46 @@ def _serper_results(keyword: str) -> list[SearchResult]:
             "https://serper.dev (2,500 free searches) and put it in config.json."
         )
 
-    # Serper returns 10 organic results per page and paginates via `page` (its own
-    # `position` resets to 1-10 each page), so we page through and compute the TRUE
-    # absolute rank. Depth from SERPER_DEPTH (env or config.json); 100 = pages 1-10.
-    # Each page is one Serper credit.
+    # Depth from SERPER_DEPTH (env or config.json); default 100 = pages 1-10.
     depth_cfg = os.getenv("SERPER_DEPTH", "").strip() or _config_value("SERPER_DEPTH") or "100"
     depth = min(MAX_RESULTS, int(depth_cfg))
-    pages = (depth + 9) // 10
     results: list[SearchResult] = []
-    for page in range(1, pages + 1):
-        response = requests.post(
-            "https://google.serper.dev/search",
-            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-            json={
-                "q": keyword,
-                "page": page,
-                "gl": os.getenv("GOOGLE_GL", "us"),
-                "hl": os.getenv("GOOGLE_HL", "en"),
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-        organic = response.json().get("organic", [])
-        if not organic:
-            break
+
+    def _collect(organic: list[dict]) -> bool:
+        """Append organic items as absolute-ranked results. Returns True to stop paging:
+        once depth is hit, OR once the target domain is found (early-exit)."""
         for item in organic:
             link = (item.get("link") or "").strip()
             if not _is_search_result_url(link):
                 continue
             if any(existing.url == link for existing in results):
                 continue
-            # Absolute rank = order across all pages (page1=1-10, page2=11-20, ...).
             results.append(SearchResult(
                 position=len(results) + 1,
                 title=(item.get("title") or "").strip(),
                 url=link,
                 snippet=(item.get("snippet") or "").strip()[:300],
             ))
+            if stop_domain and _domain_matches(link, stop_domain):
+                return True  # found the site we're checking — no need to page deeper
             if len(results) >= depth:
-                break
-        if len(results) >= depth:
+                return True
+        return False
+
+    def _fetch(page: int) -> list[dict]:
+        response = requests.post(
+            "https://google.serper.dev/search",
+            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+            json={"q": keyword, "page": page, "num": 10,
+                  "gl": os.getenv("GOOGLE_GL", "us"), "hl": os.getenv("GOOGLE_HL", "en")},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json().get("organic", [])
+
+    for page in range(1, (depth + 9) // 10 + 1):
+        organic = _fetch(page)
+        if not organic or _collect(organic):
             break
     return results
 
@@ -721,28 +742,50 @@ def _gemini_results(keyword: str) -> list[SearchResult]:
 _last_request_ts = 0.0
 
 
-def _respect_rate_limit(logger: Any = None) -> None:
-    """Block until at least MIN_REQUEST_INTERVAL has passed since the last request.
+# Paid/direct search APIs handle their own rate limiting at high volume, so we add NO
+# artificial pacing between calls. Only HTML-scraping backends need a gap to avoid
+# being IP-blocked by Google/DuckDuckGo.
+_DIRECT_API_BACKENDS = {
+    "serper", "serper_dev", "serperdev", "serpapi",
+    "google_cse", "cse", "programmable", "google_programmable",
+    "gemini", "gemini_grounding", "google_gemini",
+    "ollama", "ollama_web", "ollama_websearch",
+}
 
-    Gates every search-provider call (including retries) so the run never exceeds
-    the configured rate. Default 30s => ~2 requests/minute.
+
+def _min_request_interval() -> float:
+    """Seconds to wait between provider calls. Direct APIs need none; scraping
+    backends keep MIN_REQUEST_INTERVAL so we don't get blocked."""
+    if _search_backend() in _DIRECT_API_BACKENDS:
+        return 0.0
+    return MIN_REQUEST_INTERVAL
+
+
+def _respect_rate_limit(logger: Any = None) -> None:
+    """Block until at least the per-backend interval has passed since the last request.
+
+    Gates every search-provider call (including retries) so scraping backends never
+    exceed a safe rate. Direct APIs (Serper etc.) are not throttled.
     """
     global _last_request_ts
-    if MIN_REQUEST_INTERVAL <= 0:
+    interval = _min_request_interval()
+    if interval <= 0:
         return
-    wait = MIN_REQUEST_INTERVAL - (time.time() - _last_request_ts)
+    wait = interval - (time.time() - _last_request_ts)
     if wait > 0:
         if logger:
             logger.info("         Rate-limit pacing: waiting %.0fs (%.1f req/min cap)",
-                        wait, 60.0 / MIN_REQUEST_INTERVAL)
+                        wait, 60.0 / interval)
         time.sleep(wait)
     _last_request_ts = time.time()
 
 
-def search_keyword(keyword: str) -> list[SearchResult]:
+def search_keyword(keyword: str, stop_domain: str = "") -> list[SearchResult]:
+    """Run one keyword through the active backend. `stop_domain`, when given, lets
+    paginating backends early-exit as soon as that domain is found (fast rank checks)."""
     backend = _search_backend()
     if backend in {"serper", "serper_dev", "serperdev"}:
-        return _serper_results(keyword)
+        return _serper_results(keyword, stop_domain=stop_domain)
     if backend in {"google_cse", "cse", "programmable", "google_programmable"}:
         return _google_cse_results(keyword)
     if backend in {"gemini", "gemini_grounding", "google_gemini"}:
@@ -783,9 +826,12 @@ def run_websearch_agent(
     logger.info("Agent coordinator: Ollama model=%s", _ollama_model())
     logger.info("Search backend: %s", backend)
     logger.info("Agent plan: batch_size=%s retry=%s", plan.get("batch_size"), plan.get("retry_failed_keywords"))
-    if MIN_REQUEST_INTERVAL > 0:
+    interval = _min_request_interval()
+    if interval > 0:
         logger.info("Rate limit: %.0fs between requests (~%.1f req/min)",
-                    MIN_REQUEST_INTERVAL, 60.0 / MIN_REQUEST_INTERVAL)
+                    interval, 60.0 / interval)
+    else:
+        logger.info("Rate limit: none (%s is a direct API — full speed)", backend)
 
     rows: list[dict[str, Any]] = []
     consecutive_rate_limited = 0

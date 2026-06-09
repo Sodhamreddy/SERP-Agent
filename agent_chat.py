@@ -83,7 +83,9 @@ def tool_check_rank(ctx: dict, keyword: str = "", location: str = "", domain: st
         if city and city.lower() not in keyword.lower():
             query = f"{keyword} in {location}"
 
-    results = wa.search_keyword(query)
+    # Pass the target so the search can early-exit once it's found (fast when the site
+    # ranks well; only a deep/absent site pages the full depth).
+    results = wa.search_keyword(query, stop_domain=target)
     pos, found_url, competitors = wa.parse_ranking(results, target)
     approximate = wa._search_backend() in {"gemini", "gemini_grounding", "google_gemini"}
     data = {
@@ -425,12 +427,34 @@ def _route_fallback(message: str) -> dict[str, Any]:
         return {"tool": "list_keywords", "args": {}, "chat_reply": ""}
     if any(w in low for w in ("rank", "position", "ranking", "where do we", "place")):
         return {"tool": "check_rank", "args": {"keyword": kw, "domain": domain}, "chat_reply": ""}
+    # No explicit intent verb, but it still looks like a search phrase (e.g. a bare
+    # keyword like "Best pharmacy in Independence MO"). Rank-checking is this app's
+    # primary job, so default a plausible query to check_rank instead of 'help'.
+    if _looks_like_query(message):
+        return {"tool": "check_rank",
+                "args": {"keyword": kw or message.strip().rstrip("?.!"), "domain": domain},
+                "chat_reply": ""}
     return {
         "tool": "help",
         "args": {},
         "chat_reply": "I can check a keyword's ranking, audit your website, compare competitors, "
                       "give SEO recommendations, or run a full scan. What would you like?",
     }
+
+
+_SMALLTALK_RE = re.compile(
+    r"^\s*(hi|hello|hey|yo|thanks|thank you|ok|okay|help|menu|what\s+can\s+you|"
+    r"who\s+are\s+you|how\s+are\s+you|what\s+do\s+you|good\s+(morning|afternoon|evening))\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_query(message: str) -> bool:
+    """True if the message reads like a real search request rather than small talk."""
+    m = (message or "").strip()
+    if len(m.split()) < 2:
+        return False
+    return not _SMALLTALK_RE.match(m)
 
 
 def route(message: str) -> dict[str, Any]:
@@ -486,7 +510,7 @@ def _plan_with_ollama(message: str, ctx: dict | None = None) -> dict[str, Any] |
                        "why": "short reason"}],
         },
     }
-    out = wa._call_llm(prompt, timeout=35)
+    out = wa._call_llm(prompt, timeout=25, max_tokens=320)
     if not isinstance(out, dict) or not isinstance(out.get("steps"), list):
         return None
     steps = [
@@ -534,14 +558,34 @@ def _enforce_website_clarify(p: dict, message: str, ctx: dict | None) -> dict:
     args0 = first.get("args") or {}
     msg_domain = _extract_domain(message)
 
+    active = (ctx or {}).get("domain", "")
+
     # Inject a domain the planner may have missed (so ad-hoc checks always work).
     if t0 in ("check_rank", "compare_competitors") and not str(args0.get("domain", "")).strip() and msg_domain:
         args0["domain"] = msg_domain
         first["args"] = args0
 
-    # An already-correct domain clarify is left as-is.
-    if t0 == "clarify" and str(args0.get("need", "")) == "domain":
-        return p
+    # Normalize ANY clarify the planner produced so the UI ALWAYS gets a usable
+    # prompt (active-client chip + a free-text "Enter a website" box). The LLM
+    # often omits need='domain'/keyword/options, which left the user with a dead
+    # chip and no input — and an endless re-clarify loop.
+    if t0 == "clarify":
+        need = str(args0.get("need", "")).strip().lower()
+        kw = str(args0.get("keyword", "")).strip() or _derive_keyword(message)
+        if need == "keyword":
+            return p  # keyword clarify already works in the UI
+        # If the user already named a website, DON'T ask again — just check it.
+        if msg_domain:
+            return {"goal": p.get("goal", ""), "steps": [{"tool": "check_rank",
+                    "args": {"keyword": kw, "domain": msg_domain}, "why": "domain provided"}]}
+        opts = [str(o).strip() for o in (args0.get("options") or []) if str(o).strip()]
+        if active and active not in opts:
+            opts.insert(0, active)
+        q = str(args0.get("question", "")).strip() or (
+            "Which website should I check" + (f' for "{kw}"' if kw else "") + "?")
+        return {"goal": p.get("goal", ""), "steps": [{"tool": "clarify", "args": {
+            "need": "domain", "keyword": kw, "question": q, "options": opts[:4],
+        }, "why": first.get("why", "website not specified")}]}
 
     has_domain = bool(str(args0.get("domain", "")).strip()) or bool(msg_domain)
     low = message.lower()
@@ -552,7 +596,6 @@ def _enforce_website_clarify(p: dict, message: str, ctx: dict | None) -> dict:
                                             "check a website"))
     if wants_specific and not has_domain:
         kw = str(args0.get("keyword", "")).strip() or _derive_keyword(message)
-        active = (ctx or {}).get("domain", "")
         q = "Which website should I check" + (f' for "{kw}"' if kw else "") + "?"
         return {"goal": p.get("goal", ""), "steps": [{"tool": "clarify", "args": {
             "need": "domain", "keyword": kw, "question": q,
@@ -561,16 +604,50 @@ def _enforce_website_clarify(p: dict, message: str, ctx: dict | None) -> dict:
     return p
 
 
+# Intent groups used to decide whether a request needs the (slower) LLM planner.
+# Each entry: category -> trigger words. A message touching 2+ categories is treated
+# as multi-step and worth an LLM plan; anything else takes the instant route.
+_INTENT_GROUPS = {
+    "rank": ("rank", "position", "ranking", "where do we", "place"),
+    "audit": ("audit", "my website", "my site", "homepage", "page seo", "site seo"),
+    "competitors": ("competitor", "outrank", "beat us", "who ranks", "compare"),
+    "recommend": ("recommend", "improve", "advice", "suggestion", "how do i rank", "boost"),
+    "scan": ("full scan", "all keyword", "scan all", "everything", "120"),
+}
+_CHAIN_RE = re.compile(r"\b(and|then|also|plus|after that|as well|followed by)\b", re.IGNORECASE)
+
+
+def _is_multistep(message: str) -> bool:
+    """Cheap heuristic: does this request likely need more than one tool?
+
+    Only multi-intent requests (e.g. 'check rank AND tell me how to improve') justify
+    the LLM planner round-trip; single-intent messages take the deterministic path.
+    """
+    low = (message or "").lower()
+    hits = sum(1 for words in _INTENT_GROUPS.values() if any(w in low for w in words))
+    return hits >= 2 and bool(_CHAIN_RE.search(low))
+
+
+def _deterministic_plan(message: str) -> dict[str, Any]:
+    """Build a single-step plan from the offline router — no LLM call."""
+    decision = _route_fallback(message)
+    return {
+        "goal": "",
+        "steps": [{"tool": decision["tool"], "args": decision.get("args") or {}, "why": ""}],
+        "chat_reply": decision.get("chat_reply", ""),
+    }
+
+
 def plan(message: str, ctx: dict | None = None) -> dict[str, Any]:
-    """Return an execution plan: {goal, steps:[{tool,args,why}], chat_reply?}."""
-    planned = _plan_with_ollama(message, ctx)
-    if not planned:
-        decision = route(message)
-        planned = {
-            "goal": "",
-            "steps": [{"tool": decision["tool"], "args": decision.get("args") or {}, "why": ""}],
-            "chat_reply": decision.get("chat_reply", ""),
-        }
+    """Return an execution plan: {goal, steps:[{tool,args,why}], chat_reply?}.
+
+    Fast path: single-intent requests skip the LLM planner entirely and route
+    deterministically. Only genuine multi-step requests pay for an LLM plan.
+    """
+    if _is_multistep(message):
+        planned = _plan_with_ollama(message, ctx) or _deterministic_plan(message)
+    else:
+        planned = _deterministic_plan(message)
     return _enforce_website_clarify(planned, message, ctx)
 
 
@@ -649,16 +726,26 @@ def _answer_with_ollama(message: str, tool_name: str, data: dict[str, Any]) -> s
         "tool_result": data,
         "required_json": {"reply": "the chat reply text"},
     }
-    out = wa._call_llm(prompt, timeout=45)
+    # A 1-3 sentence reply needs few tokens; cap output + tighten the timeout so the
+    # final wording returns quickly instead of waiting on a long, slow generation.
+    out = wa._call_llm(prompt, timeout=20, max_tokens=200)
     if isinstance(out, dict) and isinstance(out.get("reply"), str) and out["reply"].strip():
         return out["reply"].strip()
     return None
+
+
+# Tools whose deterministic answer text is already complete and readable. Rewording
+# these with an LLM adds latency but little value, so we skip that round-trip and only
+# spend an LLM call where natural phrasing matters (turning rank numbers into a sentence).
+_DETERMINISTIC_ANSWER_TOOLS = {"recommend", "list_keywords", "audit_website", "full_scan", "help"}
 
 
 def _synthesize(message: str, observations: list[dict[str, Any]]) -> str | None:
     """Combine all step results into one friendly reply (multi-step agent answer)."""
     if len(observations) == 1:
         obs = observations[0]
+        if obs["tool"] in _DETERMINISTIC_ANSWER_TOOLS:
+            return _answer_fallback(obs["tool"], obs["data"])
         return _answer_with_ollama(message, obs["tool"], obs["data"])
     prompt = {
         "role": "SEO assistant summarizing an agent run",
@@ -670,7 +757,7 @@ def _synthesize(message: str, observations: list[dict[str, Any]]) -> str | None:
         "steps": [{"tool": o["tool"], "result": o["data"]} for o in observations],
         "required_json": {"reply": "the combined chat reply"},
     }
-    out = wa._call_llm(prompt, timeout=60)
+    out = wa._call_llm(prompt, timeout=30, max_tokens=320)
     if isinstance(out, dict) and isinstance(out.get("reply"), str) and out["reply"].strip():
         return out["reply"].strip()
     return None

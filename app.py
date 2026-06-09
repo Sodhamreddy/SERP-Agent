@@ -311,6 +311,27 @@ def resolve_ticket_route():
     return jsonify({"ok": ok, "open_tickets": tickets.open_count()})
 
 
+@app.route("/chats", methods=["GET", "POST"])
+def chats_route():
+    """Per-user chat history: GET lists the user's saved conversations (newest
+    first); POST upserts one conversation {id, title, msgs:[{role, html}]}."""
+    import chats
+    email = _current_user().get("email", "")
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        saved = chats.save_chat(email, data.get("chat") or data)
+        return jsonify({"ok": bool(saved), "chat": saved})
+    return jsonify({"chats": chats.chats_for(email)})
+
+
+@app.route("/chats/delete", methods=["POST"])
+def chats_delete_route():
+    import chats
+    email = _current_user().get("email", "")
+    cid = str((request.get_json(silent=True) or {}).get("id", "")).strip()
+    return jsonify({"ok": chats.delete_chat(email, cid)})
+
+
 # ── Filename validation ───────────────────────────────────────
 _VALID_REPORT = re.compile(r'^AHNS SERP [\d]{2}-[\d]{2}-[\d]{4} [\d]{2}-[\d]{2}-[\d]{2}\.(xlsx|csv)$')
 

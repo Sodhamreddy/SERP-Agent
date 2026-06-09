@@ -381,6 +381,9 @@
     .sb-run:disabled { opacity: .55; cursor: not-allowed; }
     .sb-run svg { width: 15px; height: 15px; }
     .sb-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #475569; padding: 16px 8px 6px; }
+    /* Each sidebar section is a distinct card so the groups read clearly. */
+    .sb-group { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 2px 7px 8px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04); }
+    .sb-group .sb-label { padding: 9px 6px 6px; color: #7c8ba1; }
     .sb-item {
       display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
       padding: 8px 10px; border-radius: 8px; background: transparent; border: none; color: #cbd5e1;
@@ -536,22 +539,28 @@
       </div>
     </div>
 
-    <div class="sb-switch-label">Active client</div>
-    <div class="cdd" id="clientSwitcher" style="margin-bottom:8px;"></div>
-
     <button class="sb-new" onclick="newChat()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New chat
     </button>
 
-    <div style="display:flex;gap:6px;margin-top:8px;align-items:stretch;">
-      <div class="cdd" id="runCount" title="How many keywords to scan" style="flex:0 0 104px;"></div>
-      <button class="sb-run" id="sbRunAll" onclick="runAllKeywords()" style="flex:1;margin-top:0;">
-        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run
-      </button>
+    <div class="sb-group">
+      <div class="sb-label">Active client</div>
+      <div class="cdd" id="clientSwitcher"></div>
+    </div>
+
+    <div class="sb-group">
+      <div class="sb-label">Keywords</div>
+      <div style="display:flex;gap:6px;align-items:stretch;">
+        <div class="cdd" id="runCount" title="How many keywords to scan" style="flex:0 0 104px;"></div>
+        <button class="sb-run" id="sbRunAll" onclick="runAllKeywords()" style="flex:1;margin-top:0;">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run
+        </button>
+      </div>
     </div>
 
     <div class="sb-scroll">
+    <div class="sb-group">
     <div class="sb-label">Quick actions</div>
     <button class="sb-item" onclick="sendChip('Check ranking for &quot;home care services in Detroit, MI&quot;')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Check a keyword's rank</button>
@@ -565,20 +574,27 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6h6.2c.1-.6.4-1.2.9-1.6A7 7 0 0 0 12 2z"/></svg> SEO recommendations</button>
     <button class="sb-item" onclick="sendChip('Run the full 120-keyword scan')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run full scan</button>
+    </div><!-- /quick-actions group -->
 
-    <div class="sb-label">Recent</div>
-    <div class="sb-recent" id="sbRecent"></div>
+    <div class="sb-group">
+      <div class="sb-label">Recent</div>
+      <div class="sb-recent" id="sbRecent"></div>
+    </div>
 
-    <div class="sb-label">Reports <span id="sbReportCount" style="color:#475569;"></span></div>
-    <div class="sb-reports" id="sbReports"></div>
+    <div class="sb-group">
+      <div class="sb-label">Reports <span id="sbReportCount" style="color:#475569;"></span></div>
+      <div class="sb-reports" id="sbReports"></div>
+    </div>
     </div><!-- /sb-scroll -->
 
     <div class="sb-footer">
-      <button class="sb-item" onclick="openSettings()" style="background:rgba(255,255,255,.04);">
+      <div class="sb-group">
+      <div class="sb-label">Account</div>
+      <button class="sb-item" onclick="openSettings()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings &amp; client
       </button>
-      <button class="sb-item" onclick="openTicket()">
+      <button class="sb-item" id="sbRaiseBtn" onclick="openTicket()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a3 3 0 0 0 0 6v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M13 5v14"/></svg>
         Raise a ticket
       </button>
@@ -586,6 +602,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
         Tickets <span class="sb-badge" id="sbTicketBadge" style="display:none;">0</span>
       </button>
+      </div><!-- /account group -->
       <div class="sb-status"><span class="status-dot" id="sbDot"></span><span id="sbStatus">Idle · <span id="sbDomain">—</span></span></div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#94a3b8;padding:0 6px;">
         <span style="display:flex;align-items:center;gap:7px;overflow:hidden;">
@@ -1131,6 +1148,8 @@
       const admin = u && u.role === 'admin';
       document.getElementById('sbAdminChip').style.display = admin ? '' : 'none';
       document.getElementById('sbTicketsBtn').style.display = admin ? '' : 'none';
+      // Admins receive tickets — they don't raise them, so hide "Raise a ticket".
+      document.getElementById('sbRaiseBtn').style.display = admin ? 'none' : '';
       if (admin) setTicketBadge(u.open_tickets || 0);
       return u;
     }).catch(() => {});
@@ -1183,31 +1202,80 @@
   }
 
   /* New chat — clear the conversation, restore the welcome state */
+  /* ---- Chat store: server-persisted conversations, per user (sidebar "Recent") ---- */
+  let chats = [];
+  let curChatId = null;
+
+  function newChatId() { return 'c' + Date.now() + Math.random().toString(36).slice(2, 6); }
+  function curChat() { return chats.find(c => c.id === curChatId); }
+  function chatTitle(m) {
+    m = (m || '').trim().replace(/\s+/g, ' ');
+    return m.length > 42 ? m.slice(0, 42) + '…' : (m || 'New chat');
+  }
+  /* Load this user's saved conversations from the server into the sidebar. */
+  function loadChats() {
+    fetch('/chats').then(r => r.json()).then(d => {
+      chats = (d && d.chats) || [];
+      renderChats();
+    }).catch(() => {});
+  }
+  /* Persist one conversation to the server (fire-and-forget). */
+  function persistChat(c) {
+    if (!c || !c.msgs.length) return;
+    fetch('/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: c.id, title: c.title, msgs: c.msgs }),
+    }).catch(() => {});
+  }
+  function recordUser(message) {
+    if (!curChatId) {
+      curChatId = newChatId();
+      chats.unshift({ id: curChatId, title: chatTitle(message), msgs: [] });
+    }
+    const c = curChat();
+    if (c) { c.msgs.push({ role: 'user', html: mdToHtml(message) }); renderChats(); }
+  }
+  function recordAgent(html) {
+    const c = curChat();
+    // The turn is complete here — persist the full exchange to the server.
+    if (c) { c.msgs.push({ role: 'agent', html: html }); persistChat(c); }
+  }
+  function renderChats() {
+    const el = document.getElementById('sbRecent');
+    if (!el) return;
+    el.innerHTML = '';
+    chats.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'sb-item' + (c.id === curChatId ? ' active' : '');
+      b.title = c.title;
+      b.textContent = c.title;
+      b.onclick = () => openChat(c.id);
+      el.appendChild(b);
+    });
+  }
+  function openChat(id) {
+    const c = chats.find(x => x.id === id);
+    if (!c) return;
+    curChatId = id;
+    if (typeof showView === 'function') showView('chat');
+    const log = document.getElementById('chatLog');
+    log.innerHTML = '';
+    const w = document.getElementById('chatWelcome');
+    if (w) w.style.display = 'none';
+    c.msgs.forEach(m => addChatMsg(m.role, m.html));
+    renderChats();
+    log.scrollTop = log.scrollHeight;
+  }
+
   function newChat() {
+    curChatId = null;
     document.getElementById('chatLog').innerHTML = '';
     const w = document.getElementById('chatWelcome');
     if (w) w.style.display = '';
     document.getElementById('chatInput').value = '';
     document.getElementById('chatInput').focus();
-  }
-
-  /* Recent prompts in the sidebar */
-  const recentPrompts = [];
-  function pushRecent(msg) {
-    const i = recentPrompts.indexOf(msg);
-    if (i >= 0) recentPrompts.splice(i, 1);
-    recentPrompts.unshift(msg);
-    if (recentPrompts.length > 12) recentPrompts.pop();
-    const el = document.getElementById('sbRecent');
-    el.innerHTML = '';
-    recentPrompts.forEach(m => {
-      const b = document.createElement('button');
-      b.className = 'sb-item';
-      b.title = m;
-      b.textContent = m;
-      b.onclick = () => sendChip(m);
-      el.appendChild(b);
-    });
+    renderChats();
   }
 
   function addChatMsg(role, html) {
@@ -1245,7 +1313,7 @@
     input.style.height = 'auto';
 
     addChatMsg('user', mdToHtml(message));
-    pushRecent(message);
+    recordUser(message);
 
     chatBusy = true;
     document.getElementById('chatSend').disabled = true;
@@ -1295,6 +1363,8 @@
       stepEls.forEach(el => { if (el.classList.contains('active')) markStepDone(el); });
       // Clear any leftover "Planning…" spinner (e.g. clarify/answer paths with no plan step).
       if (planSlot.querySelector('.ps-spin')) planSlot.innerHTML = '';
+      // Persist the finished agent reply so the conversation can be reopened later.
+      recordAgent(body.innerHTML);
       chatBusy = false;
       document.getElementById('chatSend').disabled = false;
       input.focus();
@@ -1523,6 +1593,7 @@
   loadSettings();     // populate sidebar domain + dynamic run-all label
   loadReports();      // populate sidebar Reports list
   refreshMe();        // username, admin badge, tickets button + open-ticket count
+  loadChats();        // restore saved conversations (server-side, per user) into the sidebar
   fetch('/status').then(r => r.json()).then(d => {
     if (d.running) { setRunning(true); runScanInChat(0); }   // resume a live scan in chat
     const eng = d.engine || {};
