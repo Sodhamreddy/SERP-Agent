@@ -423,17 +423,22 @@ def run_serp_agent(keywords: list[tuple[str, str]], domain: str | None = None) -
 # EXCEL OUTPUT  (Summary sheet + grouped SERP Report sheet)
 # ───────────────────────────────────────────────────────────────
 
-_BLUE_FILL   = PatternFill("solid", fgColor="4361EE")
-_GREEN_FILL  = PatternFill("solid", fgColor="70AD47")
-_RED_FILL    = PatternFill("solid", fgColor="FF7070")
-_GREY_FILL   = PatternFill("solid", fgColor="E8ECF8")
-_SUM_HEAD    = PatternFill("solid", fgColor="1A1D3A")
+# Professional palette: slate headers, a single clean accent blue, and SOFT status
+# tints (light green / light red) so the dark text stays readable instead of being
+# flooded by saturated fills. Status is reinforced with colored text in the data rows.
+_BLUE_FILL   = PatternFill("solid", fgColor="2563EB")   # accent blue (section headers)
+_GREEN_FILL  = PatternFill("solid", fgColor="DCFCE7")   # soft green tint (positive)
+_RED_FILL    = PatternFill("solid", fgColor="FEE2E2")   # soft red tint (negative)
+_GREY_FILL   = PatternFill("solid", fgColor="F1F5F9")   # slate-100 (sub-headers)
+_SUM_HEAD    = PatternFill("solid", fgColor="0F172A")   # slate-900 (titles / totals)
 _WHITE_FONT  = Font(bold=True, color="FFFFFF", size=11)
-_BOLD_FONT   = Font(bold=True, size=10)
-_NORMAL_FONT = Font(size=10)
+_BOLD_FONT   = Font(bold=True, size=10, color="1E293B")
+_NORMAL_FONT = Font(size=10, color="1E293B")
+_GREEN_FONT  = Font(size=10, bold=True, color="15803D")  # "Yes" reviews
+_RED_FONT    = Font(size=10, bold=True, color="B91C1C")  # "No" reviews
 _CENTER      = Alignment(horizontal="center", vertical="center")
 _LEFT        = Alignment(horizontal="left",   vertical="center")
-_THIN        = Side(border_style="thin", color="C8CEDE")
+_THIN        = Side(border_style="thin", color="E2E8F0")
 _BORDER      = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 
 
@@ -469,7 +474,7 @@ def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = 
     # Run info
     ws_s.merge_cells("A2:E2")
     d = ws_s.cell(row=2, column=1, value=f"Run Date: {run_date}   |   Total Keywords: {len(df)}")
-    d.fill = PatternFill("solid", fgColor="2D3261")
+    d.fill = PatternFill("solid", fgColor="1E293B")
     d.font = Font(color="FFFFFF", size=10)
     d.alignment = _CENTER
     ws_s.row_dimensions[2].height = 18
@@ -492,7 +497,7 @@ def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = 
         total_all += total; ranked_all += ranked
         p1_all += page1;    rev_all += reviews
 
-        fill = _GREEN_FILL if ranked > 0 else PatternFill("solid", fgColor="FFEAEA")
+        fill = _GREEN_FILL if ranked > 0 else _RED_FILL
         for col, val in enumerate([location, total, ranked, page1, reviews], 1):
             _cell(ws_s, row, col, val, fill=fill, font=_NORMAL_FONT,
                   align=_LEFT if col == 1 else _CENTER)
@@ -546,7 +551,10 @@ def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = 
                       font=_NORMAL_FONT, align=_LEFT)
             ws.cell(row=row_idx, column=1).alignment = _CENTER
             ws.cell(row=row_idx, column=3).alignment = _CENTER
-            ws.cell(row=row_idx, column=4).alignment = _CENTER
+            # Reviews cell: colored, bold text reinforces the status on the soft tint.
+            rev_cell = ws.cell(row=row_idx, column=4)
+            rev_cell.alignment = _CENTER
+            rev_cell.font = _GREEN_FONT if has_rev else _RED_FONT
             ws.row_dimensions[row_idx].height = 15
             row_idx += 1
 
