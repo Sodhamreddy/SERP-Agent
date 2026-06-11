@@ -545,11 +545,56 @@ def _derive_keyword(message: str) -> str:
     return re.sub(r"\s+", " ", s).strip(" ?.!-\"'")
 
 
+# Generic search-modifier words that say nothing about WHICH business a keyword
+# belongs to ("best", "near me", "services"...). Ignored by the relevance check.
+_KW_STOPWORDS = {
+    "best", "top", "good", "great", "cheap", "affordable", "local", "near", "the",
+    "for", "and", "with", "service", "services", "company", "companies", "agency",
+    "agencies", "review", "reviews", "cost", "costs", "price", "prices", "hour",
+    "hours", "find", "get",
+}
+
+# "our rank", "my site", "where do we stand" — the user means the active client.
+_OWN_SITE_RE = re.compile(r"\b(we|our|ours|my|us|mine)\b", re.IGNORECASE)
+
+
+def _keyword_matches_client(ctx: dict | None, keyword: str) -> bool:
+    """Cheap relevance check (no LLM): does this keyword look like the active
+    client's business? Compares the keyword's service words (minus stopwords and
+    location names) against the client's tracked-keyword vocabulary and domain
+    name. 'Best Pharmacy in Independence MO' shares no service word with a
+    home-nursing catalog → False, so the agent asks which website to check."""
+    ctx = ctx or {}
+    pairs = ctx.get("keywords") or []
+    domain = (ctx.get("domain") or "").lower()
+    if not keyword or (not pairs and not domain):
+        return True  # nothing to judge against — keep the default behavior
+    kw_low = keyword.lower().strip()
+    if any(k.lower().strip() == kw_low for _, k in pairs):
+        return True  # exact tracked keyword
+    loc_tokens = {t for loc, _ in pairs for t in re.findall(r"[a-z]+", loc.lower())}
+    vocab = {t for _, k in pairs for t in re.findall(r"[a-z]+", k.lower())
+             if len(t) >= 3 and t not in _KW_STOPWORDS and t not in loc_tokens}
+    tokens = [t for t in re.findall(r"[a-z]+", kw_low)
+              if len(t) >= 3 and t not in _KW_STOPWORDS and t not in loc_tokens]
+    if not tokens:
+        return True  # pure location/modifier query — nothing to compare
+    for t in tokens:
+        stem = t[:-1] if t.endswith("s") else t
+        if t in vocab or stem in vocab or (t + "s") in vocab:
+            return True
+        if domain and (t in domain or stem in domain):
+            return True
+    return False
+
+
 def _enforce_website_clarify(p: dict, message: str, ctx: dict | None) -> dict:
     """Safety net for ranking requests:
     - inject an explicit domain the LLM may have missed,
     - if a specific website is implied but no domain given, ask for the website URL
-      (with a text input) instead of silently assuming the active client."""
+      (with a text input) instead of silently assuming the active client,
+    - if a bare keyword doesn't look like the active client's business, ask which
+      website to check instead of silently checking the active client."""
     steps = p.get("steps") or []
     if not steps:
         return p
@@ -601,6 +646,21 @@ def _enforce_website_clarify(p: dict, message: str, ctx: dict | None) -> dict:
             "need": "domain", "keyword": kw, "question": q,
             "options": [active] if active else [],
         }, "why": "website not specified"}]}
+
+    # Off-niche keyword gate: a bare keyword with no domain that doesn't look like
+    # the active client's business (e.g. 'Best Pharmacy ...' for a home-nursing
+    # client) — ask which website to check instead of silently using the client.
+    if (t0 in ("check_rank", "compare_competitors") and not has_domain
+            and not _OWN_SITE_RE.search(message)):
+        kw = str(args0.get("keyword", "")).strip() or _derive_keyword(message)
+        if kw and not _keyword_matches_client(ctx, kw):
+            q = (f'"{kw}" doesn\'t look like one of **{active}**\'s keywords — '
+                 "which website should I check it for?") if active else (
+                 f'Which website should I check for "{kw}"?')
+            return {"goal": p.get("goal", ""), "steps": [{"tool": "clarify", "args": {
+                "need": "domain", "keyword": kw, "question": q,
+                "options": [active] if active else [],
+            }, "why": "keyword does not match the active client"}]}
     return p
 
 
