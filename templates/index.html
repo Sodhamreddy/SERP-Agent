@@ -287,6 +287,8 @@
     .btn-cancel:hover { background: var(--bg); }
     .btn-danger { padding: 9px 18px; border: none; border-radius: var(--radius-sm); background: var(--red); color: #fff; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; transition: background .15s; }
     .btn-danger:hover { background: #b91c1c; }
+    .btn-new { padding: 9px 18px; border: none; border-radius: var(--radius-sm); background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; transition: background .15s; box-shadow: 0 1px 3px rgb(37 99 235 / .35); }
+    .btn-new:hover { background: var(--accent-dk); }
     .ob-dot { flex: 1; height: 4px; border-radius: 99px; background: var(--border); transition: background .2s; }
     .ob-dot.active { background: var(--accent); }
     .ob-pane h3 { font-size: 17px; font-weight: 700; }
@@ -433,6 +435,27 @@
     .pv-table th { position: sticky; top: 0; background: #f1f5f9; font-weight: 700; color: var(--text); z-index: 1; }
     .pv-table tr:nth-child(even) td { background: #f8fafc; }
     .pv-trunc { padding: 9px 12px; font-size: 12px; color: var(--muted); font-style: italic; }
+
+    /* ── AI ANALYSIS DETAIL VIEW ── */
+    .an-body { padding: 16px 18px; }
+    .an-meta { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .an-sec { margin-bottom: 20px; }
+    .an-sec h4 { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 9px; display: flex; align-items: center; gap: 6px; }
+    .an-sec h4::before { content: ""; width: 3px; height: 11px; background: var(--accent); border-radius: 2px; }
+    .an-sum { font-size: 13.5px; line-height: 1.65; color: var(--text); }
+    .an-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
+    .an-stat { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; text-align: center; }
+    .an-stat .v { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .an-stat .l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .an-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.75; color: var(--text); }
+    .an-card { border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; font-size: 12.5px; line-height: 1.6; color: var(--text-sec); }
+    .an-card b { color: var(--text); }
+    .an-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    .an-table th, .an-table td { border-bottom: 1px solid var(--border); padding: 6px 9px; text-align: center; }
+    .an-table th { background: #f1f5f9; font-weight: 700; color: var(--text); }
+    .an-table td:first-child, .an-table th:first-child { text-align: left; }
+    .an-up { color: var(--green); font-weight: 700; }
+    .an-down { color: var(--red); font-weight: 700; }
     .sb-spacer { flex: 1; }
     .sb-footer { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
     .sb-toggle { display: flex; background: rgba(255,255,255,.06); border-radius: 99px; padding: 3px; }
@@ -698,6 +721,17 @@
   </div>
 </div>
 
+<!-- ── AI ANALYSIS / RECOMMENDATIONS ── -->
+<div class="overlay" id="analysisModal">
+  <div class="modal preview-modal" style="max-width:900px;">
+    <div class="pv-head">
+      <h3 id="anTitle">SEO recommendations</h3>
+      <button class="pv-x" onclick="closeAnalysis()" title="Close">&times;</button>
+    </div>
+    <div class="pv-body an-body" id="anBody"></div>
+  </div>
+</div>
+
 <!-- ── RAISE A TICKET ── -->
 <div class="overlay" id="ticketModal">
   <div class="modal" style="max-width:480px;">
@@ -772,7 +806,7 @@
 
     <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
       <select id="setClientPicker" onchange="onPickClient()" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;outline:none;cursor:pointer;"></select>
-      <button class="btn-cancel" onclick="newClient()">+ New</button>
+      <button class="btn-new" onclick="newClient()">+ New</button>
       <button class="btn-cancel" id="setDeleteBtn" style="color:var(--red);" onclick="deleteClient()">Delete</button>
     </div>
 
@@ -944,7 +978,25 @@
         bar.style.width = '100%';
         head.innerHTML = '✓ Scan complete';
         if (d.excel) {
-          report.innerHTML = '<span style="font-size:12.5px;color:var(--muted);">Report saved — find it under <strong>Reports</strong> in the sidebar ↙</span>';
+          report.style.flexWrap = 'wrap';
+          report.innerHTML = '';
+          const note = document.createElement('div');
+          note.style.cssText = 'flex-basis:100%;font-size:13px;font-weight:700;color:var(--green);';
+          note.textContent = '✓ Report saved — open it here or under Reports in the sidebar';
+          report.appendChild(note);
+          const mk = (label, fn) => {
+            const a = document.createElement('a');
+            a.href = 'javascript:void(0)';
+            a.textContent = label;
+            a.onclick = fn;
+            report.appendChild(a);
+          };
+          mk('📊 View report', () => openPreview(d.excel));
+          mk('💡 View recommendations', () => openAnalysis(d.excel));
+          const dl = document.createElement('a');
+          dl.href = '/download/' + encodeURIComponent(d.excel);
+          dl.textContent = '⬇ Download Excel';
+          report.appendChild(dl);
           loadReports();   // surface the new report in the sidebar
         }
         es.close();
@@ -960,6 +1012,7 @@
       const el = document.getElementById('sbReports');
       const cnt = document.getElementById('sbReportCount');
       const files = d.reports || [];
+      const hasAnalysis = new Set(d.analyses || []);
       if (cnt) cnt.textContent = files.length ? `(${files.length})` : '';
       el.innerHTML = '';
       files.slice(0, 40).forEach(f => {
@@ -974,8 +1027,14 @@
         a.innerHTML =
           `<span class="rp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>` +
           `<span class="rp-meta"><span class="rp-date">${esc(date)}</span><span class="rp-sub">${esc(time)} · Excel report</span></span>` +
+          (hasAnalysis.has(f)
+            ? `<span class="rp-dl" title="View AI recommendations" data-an="1">` +
+              `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg></span>`
+            : '') +
           `<a class="rp-dl" href="/download/${encodeURIComponent(f)}" title="Download ${esc(f)}" onclick="event.stopPropagation()">` +
           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>`;
+        const anBtn = a.querySelector('[data-an]');
+        if (anBtn) anBtn.onclick = (ev) => { ev.stopPropagation(); openAnalysis(f); };
         el.appendChild(a);
       });
     }).catch(() => {});
@@ -1031,6 +1090,100 @@
   document.getElementById('previewModal').addEventListener('click', (e) => {
     if (e.target.id === 'previewModal') closePreview();
   });
+
+  /* ── AI analysis detail view (saved per scan, opened from chat links / sidebar) ── */
+  function openAnalysis(f) {
+    document.getElementById('anTitle').textContent = 'SEO recommendations — ' + f.replace('.xlsx', '');
+    const body = document.getElementById('anBody');
+    body.innerHTML = '<div class="pv-loading">Loading analysis…</div>';
+    document.getElementById('analysisModal').classList.add('show');
+    fetch('/analysis/' + encodeURIComponent(f))
+      .then(r => {
+        if (r.status === 404) throw new Error('No analysis was saved with this report (older scans don’t have one — run a new scan).');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(d => { body.innerHTML = renderAnalysis(d); body.scrollTop = 0; })
+      .catch(err => { body.innerHTML = '<div class="pv-loading">' + esc(err.message) + '</div>'; });
+  }
+
+  function closeAnalysis() { document.getElementById('analysisModal').classList.remove('show'); }
+  document.getElementById('analysisModal').addEventListener('click', (e) => {
+    if (e.target.id === 'analysisModal') closeAnalysis();
+  });
+
+  function renderAnalysis(d) {
+    let h = '';
+    const meta = [d.domain, d.run_date, d.source ? 'source: ' + d.source : '', d.model || '']
+      .filter(Boolean).map(esc).join(' · ');
+    if (meta) h += `<div class="an-meta">${meta}</div>`;
+
+    const s = d.summary || {};
+    if (Object.keys(s).length) {
+      const stat = (v, l) => `<div class="an-stat"><div class="v">${esc(String(v ?? 0))}</div><div class="l">${l}</div></div>`;
+      h += `<div class="an-sec"><h4>Run summary</h4><div class="an-stats">` +
+        stat(s.total_keywords, 'Keywords') + stat(s.ranked, 'Ranked') +
+        stat(s.not_found, 'Not found') + stat(s.page_1, 'Page 1') +
+        stat(s.with_reviews, 'With reviews') + stat(s.locations_checked, 'Cities') +
+        `</div></div>`;
+    }
+
+    if (d.executive_summary)
+      h += `<div class="an-sec"><h4>Executive summary</h4><div class="an-sum">${esc(d.executive_summary)}</div></div>`;
+
+    const list = (title, arr) => (arr && arr.length)
+      ? `<div class="an-sec"><h4>${title}</h4><ul class="an-list">` +
+        arr.map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('') + '</ul></div>'
+      : '';
+    h += list('Recommendations', d.recommendations);
+    h += list('Risks', d.risks);
+
+    const cmp = d.comparison || {};
+    if ((cmp.locations || []).length) {
+      const rows = cmp.locations.map(e => {
+        const up = (e.improved || 0) + (e.new_ranked || 0);
+        const down = (e.declined || 0) + (e.lost || 0);
+        return `<tr><td>${esc(e.location || '')}</td><td>${e.compared || 0}/${e.checked || 0}</td>` +
+          `<td>${e.ranked_prev || 0}</td><td>${e.ranked_now || 0}</td>` +
+          `<td class="an-up">${up ? '▲ ' + up : '–'}</td><td class="an-down">${down ? '▼ ' + down : '–'}</td>` +
+          `<td>${e.unchanged || 0}</td></tr>`;
+      }).join('');
+      h += `<div class="an-sec"><h4>vs last run — each city</h4>` +
+        `<div class="an-meta" style="margin-bottom:8px;">Compared with ${esc(cmp.previous_run || 'the previous run')}</div>` +
+        `<table class="an-table"><tr><th>City</th><th>Compared</th><th>Ranked (last)</th><th>Ranked (now)</th><th>Up</th><th>Down</th><th>Same</th></tr>${rows}</table>`;
+      const moves = cmp.locations.flatMap(e => (e.changes || []).map(c => ({ loc: e.location, ...c })));
+      if (moves.length) {
+        h += `<div style="height:10px;"></div><table class="an-table">` +
+          `<tr><th>City</th><th style="text-align:left;">Keyword</th><th>Last</th><th>Now</th><th>Change</th></tr>` +
+          moves.map(c => {
+            const bad = c.delta === 'lost' || String(c.delta || '').startsWith('-');
+            return `<tr><td>${esc(c.loc || '')}</td><td style="text-align:left;">${esc(c.keyword || '')}</td>` +
+              `<td>${esc(String(c.last || ''))}</td><td>${esc(String(c.now || ''))}</td>` +
+              `<td class="${bad ? 'an-down' : 'an-up'}">${esc(String(c.delta || ''))}</td></tr>`;
+          }).join('') + '</table>';
+      }
+      h += `</div>`;
+    }
+
+    if ((d.competitor_insights || []).length) {
+      h += `<div class="an-sec"><h4>Competitor insights</h4>` + d.competitor_insights.map(c => {
+        if (typeof c === 'string') return `<div class="an-card">${esc(c)}</div>`;
+        return `<div class="an-card"><b>${esc(c.competitor || '')}</b>` +
+          (c.why_they_rank ? `<br>${esc(c.why_they_rank)}` : '') +
+          (c.what_to_copy_ethically ? `<br><i>Learn from: ${esc(c.what_to_copy_ethically)}</i>` : '') + `</div>`;
+      }).join('') + `</div>`;
+    }
+
+    if ((d.page_changes || []).length) {
+      h += `<div class="an-sec"><h4>Suggested page changes</h4>` + d.page_changes.map(c => {
+        if (typeof c === 'string') return `<div class="an-card">${esc(c)}</div>`;
+        return `<div class="an-card">` + Object.entries(c)
+          .map(([k, v]) => `<b>${esc(k.replace(/_/g, ' '))}:</b> ${esc(String(v))}`).join('<br>') + `</div>`;
+      }).join('') + `</div>`;
+    }
+
+    return h || '<div class="pv-loading">The analysis file is empty.</div>';
+  }
 
   /* ── Clients (multi-client profiles + switcher) ── */
   let clientsCache = { active: '', clients: [], role: 'member' };

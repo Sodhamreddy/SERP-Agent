@@ -451,7 +451,8 @@ def _cell(ws, row, col, value="", fill=None, font=None, align=None):
     return c
 
 
-def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = None) -> None:
+def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = None,
+               comparison: dict | None = None) -> None:
     wb = Workbook()
 
     # ── Sheet 1: Executive Summary ────────────────────────────
@@ -562,6 +563,63 @@ def save_excel(df: pd.DataFrame, path: str, run_date: str, domain: str | None = 
 
     # Auto-filter on SERP Report sheet
     ws.auto_filter.ref = f"A2:E{row_idx - 1}"
+
+    # ── Sheet 3: vs Last Run (per-city comparison with the previous run) ──
+    if comparison and comparison.get("locations"):
+        ws_c = wb.create_sheet("vs Last Run")
+        for col, w in {"A": 26, "B": 50, "C": 13, "D": 13, "E": 12, "F": 10, "G": 8, "H": 8}.items():
+            ws_c.column_dimensions[col].width = w
+
+        ws_c.merge_cells("A1:H1")
+        t = ws_c.cell(row=1, column=1,
+                      value=f"This run vs previous run ({comparison.get('previous_run', '')})")
+        t.fill = _SUM_HEAD
+        t.font = Font(bold=True, color="FFFFFF", size=12)
+        t.alignment = _CENTER
+        ws_c.row_dimensions[1].height = 24
+
+        # Per-city summary table
+        row = 3
+        headers = ["Location", "Keywords", "Ranked (last)", "Ranked (now)",
+                   "Improved", "Declined", "New", "Lost"]
+        for col, label in enumerate(headers, 1):
+            _cell(ws_c, row, col, label, fill=_BLUE_FILL, font=_WHITE_FONT, align=_CENTER)
+        row += 1
+        for e in comparison["locations"]:
+            up   = e.get("improved", 0) + e.get("new_ranked", 0)
+            down = e.get("declined", 0) + e.get("lost", 0)
+            fill = _GREEN_FILL if up > down else (_RED_FILL if down > up else _GREY_FILL)
+            vals = [e.get("location", ""), e.get("checked", 0), e.get("ranked_prev", 0),
+                    e.get("ranked_now", 0), e.get("improved", 0), e.get("declined", 0),
+                    e.get("new_ranked", 0), e.get("lost", 0)]
+            for col, val in enumerate(vals, 1):
+                _cell(ws_c, row, col, val, fill=fill, font=_NORMAL_FONT,
+                      align=_LEFT if col == 1 else _CENTER)
+            row += 1
+
+        # Keyword-level movements
+        moves = [(e.get("location", ""), c)
+                 for e in comparison["locations"] for c in e.get("changes", [])]
+        if moves:
+            row += 1
+            ws_c.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+            h = ws_c.cell(row=row, column=1, value="Keyword movements")
+            h.fill = _SUM_HEAD; h.font = _WHITE_FONT
+            h.alignment = _LEFT; h.border = _BORDER
+            row += 1
+            for col, label in enumerate(["Location", "Keyword", "Last", "Now", "Change"], 1):
+                _cell(ws_c, row, col, label, fill=_GREY_FILL, font=_BOLD_FONT, align=_CENTER)
+            row += 1
+            for loc, c in moves:
+                worse = c.get("delta") == "lost" or str(c.get("delta", "")).startswith("-")
+                vals = [loc, c.get("keyword", ""), c.get("last", ""), c.get("now", ""),
+                        c.get("delta", "")]
+                for col, val in enumerate(vals, 1):
+                    _cell(ws_c, row, col, val, fill=_RED_FILL if worse else _GREEN_FILL,
+                          font=_NORMAL_FONT, align=_LEFT if col <= 2 else _CENTER)
+                d_cell = ws_c.cell(row=row, column=5)
+                d_cell.font = _RED_FONT if worse else _GREEN_FONT
+                row += 1
 
     wb.save(path)
     log.info("Excel saved: %s", path)

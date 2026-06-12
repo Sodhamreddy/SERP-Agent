@@ -104,7 +104,7 @@ ADMIN_CODE  = str(_local_config.get("ADMIN_CODE", "ahns-admin")).strip()
 _PUBLIC_PATHS = {"/login", "/signup", "/favicon.ico"}
 _API_PREFIXES = ("/chat", "/clients", "/run", "/status", "/stream", "/keywords",
                  "/config", "/settings", "/cleanup", "/download", "/me", "/tickets",
-                 "/reports", "/suggest", "/preview")
+                 "/reports", "/suggest", "/preview", "/analysis")
 
 # ── Rate-limit state ──────────────────────────────────────────
 _last_run_time: float = 0.0
@@ -262,10 +262,13 @@ def suggest():
 
 @app.route("/reports")
 def list_reports():
-    """Filenames of generated reports (newest first) for the sidebar list."""
+    """Filenames of generated reports (newest first) for the sidebar list.
+    Also says which reports have a saved AI analysis alongside them."""
+    have_analysis = {os.path.basename(f) for f in glob.glob("results/AHNS SERP *.analysis.json")}
     files = sorted([os.path.basename(f) for f in glob.glob("results/AHNS SERP *.xlsx")],
                    reverse=True)
-    return jsonify({"reports": files})
+    analyses = [f for f in files if f.replace(".xlsx", ".analysis.json") in have_analysis]
+    return jsonify({"reports": files, "analyses": analyses})
 
 
 @app.route("/me")
@@ -757,6 +760,20 @@ def download(filename):
     return send_from_directory("results", safe, as_attachment=True)
 
 
+@app.route("/analysis/<path:filename>")
+def get_analysis(filename):
+    """Return the saved AI analysis for a report (same name as the .xlsx)."""
+    safe = os.path.basename(filename)
+    if not _validate_report_filename(safe):
+        abort(400, "Invalid filename.")
+    results_dir = os.path.abspath("results")
+    target = os.path.abspath(os.path.join(results_dir, safe.replace(".xlsx", ".analysis.json")))
+    if not target.startswith(results_dir) or not os.path.isfile(target):
+        abort(404, "No analysis saved for this report.")
+    with open(target, encoding="utf-8") as fh:
+        return jsonify(json.load(fh))
+
+
 @app.route("/preview/<path:filename>")
 def preview_report(filename):
     """Return a report's sheets as JSON so the UI can show an in-app preview
@@ -808,6 +825,79 @@ def _log(msg: str, done=False, excel=""):
     }))
 
 
+def _position_value(pos) -> int | None:
+    """'1.4' (page.slot) → absolute 4; '2.3' → 13; 'Not Found'/blank → None."""
+    s = str(pos if pos is not None else "").strip()
+    if not s or s.lower() in ("not found", "nan", "none"):
+        return None
+    m = re.match(r"^(\d+)(?:\.(\d+))?$", s)
+    if not m:
+        return None
+    page, slot = int(m.group(1)), int(m.group(2) or 1)
+    return (page - 1) * 10 + slot
+
+
+def _build_run_comparison(rows: list, prev_csv_path: str) -> dict | None:
+    """Per-city comparison of this run vs the previous run's CSV.
+
+    Matches keywords by (Location, Keyword) so a previous run for a different
+    client simply yields no matches (returns None instead of a bogus diff)."""
+    try:
+        prev_df = pd.read_csv(prev_csv_path)
+        prev = {(str(r.get("Location", "")), str(r.get("Keyword", ""))):
+                (str(r.get("Position", "")), _position_value(r.get("Position")))
+                for r in prev_df.to_dict("records")}
+    except Exception:  # noqa: BLE001
+        return None
+    if not prev:
+        return None
+
+    locations, by_loc, compared_total = [], {}, 0
+    for r in rows:
+        loc = str(r.get("Location", "") or "—")
+        e = by_loc.get(loc)
+        if e is None:
+            e = by_loc[loc] = {"location": loc, "checked": 0, "compared": 0,
+                               "ranked_prev": 0, "ranked_now": 0, "improved": 0,
+                               "declined": 0, "unchanged": 0, "new_ranked": 0,
+                               "lost": 0, "changes": []}
+            locations.append(e)
+        e["checked"] += 1
+        cur_raw = str(r.get("Position", ""))
+        cur = _position_value(cur_raw)
+        if cur is not None:
+            e["ranked_now"] += 1
+        key = (loc, str(r.get("Keyword", "")))
+        if key not in prev:
+            continue  # keyword wasn't in the last run — nothing to compare
+        old_raw, old = prev[key]
+        e["compared"] += 1
+        compared_total += 1
+        if old is not None:
+            e["ranked_prev"] += 1
+        if old is None and cur is None:
+            e["unchanged"] += 1
+        elif old is None:
+            e["new_ranked"] += 1
+            e["changes"].append({"keyword": key[1], "last": "Not Found", "now": cur_raw, "delta": "new"})
+        elif cur is None:
+            e["lost"] += 1
+            e["changes"].append({"keyword": key[1], "last": old_raw, "now": "Not Found", "delta": "lost"})
+        elif cur < old:
+            e["improved"] += 1
+            e["changes"].append({"keyword": key[1], "last": old_raw, "now": cur_raw, "delta": f"+{old - cur}"})
+        elif cur > old:
+            e["declined"] += 1
+            e["changes"].append({"keyword": key[1], "last": old_raw, "now": cur_raw, "delta": f"-{cur - old}"})
+        else:
+            e["unchanged"] += 1
+    if not compared_total:
+        return None  # previous run was for different keywords/client
+    for e in by_loc.values():
+        e["changes"] = e["changes"][:10]
+    return {"previous_run": os.path.basename(prev_csv_path), "locations": locations}
+
+
 def _run_agent(keywords=None, domain=None):
     global _agent_running, _last_rows, _last_excel, _last_agent_report, _progress
 
@@ -836,8 +926,13 @@ def _run_agent(keywords=None, domain=None):
         csv_path   = f"results/AHNS SERP {ts}.csv"
         run_date   = datetime.now().strftime("%d/%m/%Y")
 
+        # Compare against the most recent previous run (before this run's CSV exists).
+        prev_csvs  = glob.glob("results/AHNS SERP *.csv")
+        comparison = (_build_run_comparison(rows, max(prev_csvs, key=os.path.getmtime))
+                      if prev_csvs else None)
+
         df = pd.DataFrame(rows)
-        sa.save_excel(df, excel_path, run_date, domain)
+        sa.save_excel(df, excel_path, run_date, domain, comparison=comparison)
         df.to_csv(csv_path, index=False)
         _last_excel = excel_path
 
@@ -867,6 +962,18 @@ def _run_agent(keywords=None, domain=None):
                 "content_brief": {},
             }
         source = _last_agent_report.get("source", "local")
+
+        # Persist the analysis next to the Excel so it survives restarts and can
+        # be reopened later from the sidebar / chat links.
+        _last_agent_report["domain"]   = domain
+        _last_agent_report["run_date"] = run_date
+        if comparison:
+            _last_agent_report["comparison"] = comparison
+        try:
+            with open(f"results/AHNS SERP {ts}.analysis.json", "w", encoding="utf-8") as fh:
+                json.dump(_last_agent_report, fh, ensure_ascii=False, indent=1)
+        except Exception as exc:  # noqa: BLE001
+            _log(f"Could not save the analysis file: {exc}")
         _log(f"Agent analysis ready - source: {source}")
 
         reviewed = sum(1 for r in rows if r["Reviews"] == "Yes")
