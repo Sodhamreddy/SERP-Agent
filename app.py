@@ -104,7 +104,7 @@ ADMIN_CODE  = str(_local_config.get("ADMIN_CODE", "ahns-admin")).strip()
 _PUBLIC_PATHS = {"/login", "/signup", "/favicon.ico"}
 _API_PREFIXES = ("/chat", "/clients", "/run", "/status", "/stream", "/keywords",
                  "/config", "/settings", "/cleanup", "/download", "/me", "/tickets",
-                 "/reports", "/suggest")
+                 "/reports", "/suggest", "/preview")
 
 # ── Rate-limit state ──────────────────────────────────────────
 _last_run_time: float = 0.0
@@ -755,6 +755,46 @@ def download(filename):
     if not target.startswith(results_dir):
         abort(400, "Invalid path.")
     return send_from_directory("results", safe, as_attachment=True)
+
+
+@app.route("/preview/<path:filename>")
+def preview_report(filename):
+    """Return a report's sheets as JSON so the UI can show an in-app preview
+    (read-only — /download still serves the actual .xlsx file)."""
+    safe = os.path.basename(filename)
+    if not _validate_report_filename(safe):
+        abort(400, "Invalid filename.")
+    results_dir = os.path.abspath("results")
+    target      = os.path.abspath(os.path.join(results_dir, safe))
+    if not target.startswith(results_dir) or not os.path.isfile(target):
+        abort(404, "Report not found.")
+
+    from openpyxl import load_workbook
+    MAX_ROWS, MAX_COLS = 400, 20   # keep the JSON payload light
+    wb = load_workbook(target, read_only=True, data_only=True)
+    sheets = []
+    try:
+        for ws in wb.worksheets:
+            rows, truncated = [], False
+            for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
+                if r_idx >= MAX_ROWS:
+                    truncated = True
+                    break
+                cells = []
+                for v in row[:MAX_COLS]:
+                    if v is None:
+                        cells.append("")
+                    elif isinstance(v, float):
+                        cells.append(int(v) if v == int(v) else round(v, 2))
+                    elif isinstance(v, (int, bool)):
+                        cells.append(v)
+                    else:
+                        cells.append(str(v))
+                rows.append(cells)
+            sheets.append({"name": ws.title, "rows": rows, "truncated": truncated})
+    finally:
+        wb.close()
+    return jsonify({"filename": safe, "sheets": sheets})
 
 
 # ── Background agent runner ───────────────────────────────────

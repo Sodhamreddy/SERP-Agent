@@ -406,9 +406,33 @@
     .sb-report:hover { background: rgba(37,99,235,.18); border-color: rgba(59,130,246,.35); color: #fff; }
     .sb-report .rp-ic { width: 26px; height: 26px; border-radius: 7px; background: rgba(37,99,235,.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .sb-report .rp-ic svg { width: 14px; height: 14px; color: #93c5fd; }
-    .sb-report .rp-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+    .sb-report .rp-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; flex: 1; }
     .sb-report .rp-date { font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sb-report .rp-sub { font-size: 10.5px; color: #64748b; }
+    .sb-report { cursor: pointer; }
+    .sb-report .rp-dl { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #93c5fd; background: transparent; transition: background .12s; }
+    .sb-report .rp-dl:hover { background: rgba(37,99,235,.35); color: #fff; }
+    .sb-report .rp-dl svg { width: 14px; height: 14px; }
+
+    /* ── REPORT PREVIEW MODAL ── */
+    .preview-modal { max-width: 1040px; width: 94%; max-height: 86vh; display: flex; flex-direction: column; padding: 20px 22px; }
+    .pv-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .pv-head h3 { font-size: 15px; font-weight: 700; margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pv-dl-btn { text-decoration: none; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 8px; background: var(--accent); color: #fff; flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; }
+    .pv-dl-btn:hover { background: var(--accent-dk); }
+    .pv-dl-btn svg { width: 13px; height: 13px; }
+    .pv-x { border: none; background: none; cursor: pointer; color: var(--muted-lt); font-size: 20px; line-height: 1; padding: 4px 6px; flex-shrink: 0; }
+    .pv-x:hover { color: var(--text); }
+    .pv-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .pv-tab { border: 1px solid var(--border); background: #fff; color: var(--muted); border-radius: 8px; padding: 6px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .pv-tab.active { background: var(--accent-lt); border-color: var(--accent-md); color: var(--accent); }
+    .pv-body { overflow: auto; flex: 1; border: 1px solid var(--border); border-radius: 10px; min-height: 120px; }
+    .pv-loading { padding: 26px; font-size: 13px; color: var(--muted); }
+    .pv-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    .pv-table th, .pv-table td { border-bottom: 1px solid var(--border); padding: 7px 12px; text-align: left; white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+    .pv-table th { position: sticky; top: 0; background: #f1f5f9; font-weight: 700; color: var(--text); z-index: 1; }
+    .pv-table tr:nth-child(even) td { background: #f8fafc; }
+    .pv-trunc { padding: 9px 12px; font-size: 12px; color: var(--muted); font-style: italic; }
     .sb-spacer { flex: 1; }
     .sb-footer { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
     .sb-toggle { display: flex; background: rgba(255,255,255,.06); border-radius: 99px; padding: 3px; }
@@ -655,6 +679,22 @@
   <div class="rt-links">
     <a id="rtXlsx" href="#">Download Excel</a>
     <a id="rtCsv" href="#">Download CSV</a>
+  </div>
+</div>
+
+<!-- ── REPORT PREVIEW ── -->
+<div class="overlay" id="previewModal">
+  <div class="modal preview-modal">
+    <div class="pv-head">
+      <h3 id="pvTitle">Report preview</h3>
+      <a id="pvDownload" class="pv-dl-btn" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Excel
+      </a>
+      <button class="pv-x" onclick="closePreview()" title="Close">&times;</button>
+    </div>
+    <div class="pv-tabs" id="pvTabs"></div>
+    <div class="pv-body" id="pvBody"></div>
   </div>
 </div>
 
@@ -927,17 +967,70 @@
         const m = f.match(/(\d{2}-\d{2}-\d{4}) (\d{2})-(\d{2})/);
         const date = m ? m[1] : f.replace('.xlsx', '');
         const time = m ? `${m[2]}:${m[3]}` : '';
-        const a = document.createElement('a');
+        const a = document.createElement('div');
         a.className = 'sb-report';
-        a.href = '/download/' + encodeURIComponent(f);
-        a.title = 'Download ' + f;
+        a.title = 'Preview ' + f;
+        a.onclick = () => openPreview(f);
         a.innerHTML =
-          `<span class="rp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>` +
-          `<span class="rp-meta"><span class="rp-date">${esc(date)}</span><span class="rp-sub">${esc(time)} · Excel report</span></span>`;
+          `<span class="rp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>` +
+          `<span class="rp-meta"><span class="rp-date">${esc(date)}</span><span class="rp-sub">${esc(time)} · Excel report</span></span>` +
+          `<a class="rp-dl" href="/download/${encodeURIComponent(f)}" title="Download ${esc(f)}" onclick="event.stopPropagation()">` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>`;
         el.appendChild(a);
       });
     }).catch(() => {});
   }
+
+  /* ── Report preview modal (view the Excel in-app; Download stays separate) ── */
+  let pvSheets = [];
+
+  function openPreview(f) {
+    document.getElementById('pvTitle').textContent = f;
+    document.getElementById('pvDownload').href = '/download/' + encodeURIComponent(f);
+    document.getElementById('pvTabs').innerHTML = '';
+    document.getElementById('pvBody').innerHTML = '<div class="pv-loading">Loading preview…</div>';
+    document.getElementById('previewModal').classList.add('show');
+    fetch('/preview/' + encodeURIComponent(f))
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => {
+        pvSheets = d.sheets || [];
+        const tabs = document.getElementById('pvTabs');
+        pvSheets.forEach((s, i) => {
+          const b = document.createElement('button');
+          b.className = 'pv-tab' + (i === 0 ? ' active' : '');
+          b.textContent = s.name;
+          b.onclick = () => {
+            tabs.querySelectorAll('.pv-tab').forEach(t => t.classList.remove('active'));
+            b.classList.add('active');
+            renderPvSheet(i);
+          };
+          tabs.appendChild(b);
+        });
+        renderPvSheet(0);
+      })
+      .catch(err => {
+        document.getElementById('pvBody').innerHTML =
+          '<div class="pv-loading">Could not load the preview (' + esc(err.message) +
+          '). You can still download the file.</div>';
+      });
+  }
+
+  function renderPvSheet(i) {
+    const s = pvSheets[i];
+    const body = document.getElementById('pvBody');
+    if (!s || !s.rows.length) { body.innerHTML = '<div class="pv-loading">This sheet is empty.</div>'; return; }
+    const cell = (v, tag) => `<${tag} title="${esc(String(v))}">${esc(String(v))}</${tag}>`;
+    const html = s.rows.map((r, ri) =>
+      '<tr>' + r.map(v => cell(v, ri === 0 ? 'th' : 'td')).join('') + '</tr>').join('');
+    body.innerHTML = '<table class="pv-table">' + html + '</table>' +
+      (s.truncated ? '<div class="pv-trunc">Preview shows the first rows only — download the Excel for the full report.</div>' : '');
+    body.scrollTop = 0;
+  }
+
+  function closePreview() { document.getElementById('previewModal').classList.remove('show'); }
+  document.getElementById('previewModal').addEventListener('click', (e) => {
+    if (e.target.id === 'previewModal') closePreview();
+  });
 
   /* ── Clients (multi-client profiles + switcher) ── */
   let clientsCache = { active: '', clients: [], role: 'member' };
@@ -1304,7 +1397,7 @@
     return '';
   }
 
-  async function sendChat() {
+  async function sendChat(displayText) {
     if (chatBusy) return;
     const input = document.getElementById('chatInput');
     const message = input.value.trim();
@@ -1312,8 +1405,11 @@
     input.value = '';
     input.style.height = 'auto';
 
-    addChatMsg('user', mdToHtml(message));
-    recordUser(message);
+    // Clarify follow-ups send a synthetic command ('check rank for "kw" on site')
+    // to the server but show only what the user actually chose (e.g. the domain).
+    const shown = (typeof displayText === 'string' && displayText.trim()) ? displayText.trim() : message;
+    addChatMsg('user', mdToHtml(shown));
+    recordUser(shown);
 
     chatBusy = true;
     document.getElementById('chatSend').disabled = true;
@@ -1424,13 +1520,13 @@
           const d = (dom || '').trim();
           if (!d) return;
           ci.value = kw ? `check rank for "${kw}" on ${d}` : `check rank on ${d}`;
-          hideSuggest(); sendChat();
+          hideSuggest(); sendChat(d);   // show only the chosen site, not the command
         };
         const askKeyword = (k) => {
           const v = (k || '').trim();
           if (!v) return;
           ci.value = `check rank for "${v}"`;
-          hideSuggest(); sendChat();
+          hideSuggest(); sendChat(v);   // show only the keyword, not the command
         };
         // Quick options (e.g. the active client domain).
         if ((s.options || []).length) {
