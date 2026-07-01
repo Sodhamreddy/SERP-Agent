@@ -271,6 +271,44 @@ def list_reports():
     return jsonify({"reports": files, "analyses": analyses})
 
 
+@app.route("/competitors")
+def competitor_analysis_route():
+    """Aggregate competitor footprint across the active client's most recent scan."""
+    import llm_insights
+    active = _active_client()
+    if not active:
+        return jsonify({"ok": False, "error": "No active client."}), 400
+    return jsonify(llm_insights.competitor_report(active["domain"]))
+
+
+@app.route("/llm-overview")
+def llm_overview_route():
+    """AI-search (LLM) visibility for the active client, from the most recent scan."""
+    import llm_insights
+    active = _active_client()
+    if not active:
+        return jsonify({"ok": False, "error": "No active client."}), 400
+    return jsonify(llm_insights.llm_visibility_report(active["domain"]))
+
+
+@app.route("/ai-platforms/status")
+def ai_platforms_status_route():
+    """Which AI platforms are wired up (Google AI Overview live; others need keys)."""
+    import ai_platforms
+    return jsonify({"platforms": ai_platforms.platform_status()})
+
+
+@app.route("/ai-platforms/check")
+def ai_platforms_check_route():
+    """Live, per-platform citation position for one keyword across AI platforms."""
+    import ai_platforms
+    active = _active_client()
+    if not active:
+        return jsonify({"ok": False, "error": "No active client."}), 400
+    keyword = (request.args.get("keyword") or "").strip()
+    return jsonify(ai_platforms.check_keyword(keyword, active["domain"]))
+
+
 @app.route("/me")
 def me():
     import tickets

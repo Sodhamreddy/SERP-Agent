@@ -1,0 +1,144 @@
+{
+ "executive_summary": "The target domain, myassuredhomenursing.com, shows strong foundational performance, ranking in the top 3 for all analyzed keywords, indicating good topical authority and local relevance. However, performance is inconsistent, with some keywords ranking at 1.1 (excellent) while others are at 4.10 (needs improvement). The primary opportunity is to improve content depth and local signal optimization, especially for the Beverly Hills, MI, cluster, to challenge established competitors.",
+ "recommendations": [
+  "Optimize the content for the Beverly Hills, MI, cluster (especially 'home care services in Beverly Hills,Mi') to improve the page's perceived local authority and depth, aiming for a top 3 ranking.",
+  "Develop dedicated, highly localized landing pages for each major service area (e.g., 'Senior In home care in Birmingham,Mi', 'home care services in Beverly Hills,Mi') rather than relying on general service area pages.",
+  "Improve the title tags and meta descriptions across all service area pages to explicitly include the target keyword and location, maximizing click-through rate (CTR) from the SERP."
+ ],
+ "risks": [
+  "The inconsistent ranking performance (e.g., 1.1 vs 4.10) suggests that while the site is visible, it lacks the deep, authoritative content required to consistently beat established, high-authority competitors (e.g., Visiting Angels, Comfort Keepers).",
+  "The reliance on general service area pages may dilute the site's topical authority compared to competitors who may have more comprehensive, localized content."
+ ],
+ "competitor_insights": [
+  {
+   "competitor": "Visiting Angels",
+   "why_they_rank": "They consistently appear in the top 2-3 spots and have highly authoritative, service-oriented titles/snippets that emphasize trust, licensing, and comprehensive care options.",
+   "what_to_copy_ethically": "Adopt their structure of listing specific services (Bathing assistance, Dressing assistance, etc.) and emphasizing the 'trusted' and 'licensed' nature of their caregiving staff."
+  },
+  {
+   "competitor": "Comfort Keepers",
+   "why_they_rank": "They are a major, established brand with strong local SEO presence, appearing in multiple top spots and using localized, service-specific language.",
+   "what_to_copy_ethically": "Focus on creating highly detailed, localized content that matches the depth and authority of their listings, ensuring every piece of content feels hyper-local to the target service area."
+  },
+  {
+   "competitor": "Homecare providers (General)",
+   "what_to_ethically": "Ensure that the content structure is highly readable and answers the user's intent immediately. Use H2/H3 tags for specific care needs (e.g., 'Memory Care,' 'Post-Surgical Care') to match the comprehensive nature of the top-ranking pages."
+  }
+ ],
+ "page_optimization_suggestions": [
+  {
+   "page_focus": "All Service Area Pages (e.g., Ann Arbor, Beverly Hills)",
+   "action": "Implement a 'Local Trust Signal' section. Include a map widget, local testimonials, and a clear 'Serving [City Name]' statement to boost local SEO relevance."
+  },
+  {
+   "page_focus": "Service Pages (e.g., 'In-Home Care')",
+   "action": "Create comprehensive, long-form guides. Instead of just listing services, write about the *needs* (e.g., 'What to Expect When Caring for an Elderly Parent at Home'). This establishes topical authority."
+  },
+  {
+   "page_focus": "Homepage",
+   "action": "Improve the value proposition immediately. The homepage should clearly state: 1. What you do. 2. Where you do it. 3. Why you are better (e.g., 'Vetted Caregivers,' '24/7 Support')."
+  }
+ ],
+ "source": "ollama",
+ "model": "gemma4:e4b",
+ "summary": {
+  "total_keywords": 10,
+  "ranked": 10,
+  "not_found": 0,
+  "page_1": 7,
+  "with_reviews": 0,
+  "locations_checked": 3,
+  "top_locations": [
+   {
+    "location": "Birmingham, MI",
+    "keywords": 4
+   },
+   {
+    "location": "Beverly Hills, MI",
+    "keywords": 4
+   },
+   {
+    "location": "Ann Arbor, MI",
+    "keywords": 2
+   }
+  ]
+ },
+ "domain": "myassuredhomenursing.com",
+ "run_date": "18/06/2026",
+ "comparison": {
+  "previous_run": "AHNS SERP 18-06-2026 11-45-37.csv",
+  "locations": [
+   {
+    "location": "Birmingham, MI",
+    "checked": 4,
+    "compared": 4,
+    "ranked_prev": 4,
+    "ranked_now": 4,
+    "improved": 0,
+    "declined": 0,
+    "unchanged": 4,
+    "new_ranked": 0,
+    "lost": 0,
+    "changes": []
+   },
+   {
+    "location": "Beverly Hills, MI",
+    "checked": 4,
+    "compared": 4,
+    "ranked_prev": 4,
+    "ranked_now": 4,
+    "improved": 0,
+    "declined": 4,
+    "unchanged": 0,
+    "new_ranked": 0,
+    "lost": 0,
+    "changes": [
+     {
+      "keyword": "Senior In home care in Beverly Hills,Mi",
+      "last": "1.5",
+      "now": "1.9",
+      "delta": "-4"
+     },
+     {
+      "keyword": "home care services in Beverly Hills,Mi",
+      "last": "1.9",
+      "now": "4.10",
+      "delta": "-31"
+     },
+     {
+      "keyword": "In home care services in Beverly Hills,Mi",
+      "last": "1.1",
+      "now": "1.7",
+      "delta": "-6"
+     },
+     {
+      "keyword": "24 hour home care in Beverly Hills,Mi",
+      "last": "1.1",
+      "now": "2.9",
+      "delta": "-18"
+     }
+    ]
+   },
+   {
+    "location": "Ann Arbor, MI",
+    "checked": 2,
+    "compared": 2,
+    "ranked_prev": 2,
+    "ranked_now": 2,
+    "improved": 1,
+    "declined": 0,
+    "unchanged": 1,
+    "new_ranked": 0,
+    "lost": 0,
+    "changes": [
+     {
+      "keyword": "home care services in Ann Arbor,Mi",
+      "last": "4.7",
+      "now": "2.1",
+      "delta": "+26"
+     }
+    ]
+   }
+  ]
+ }
+}

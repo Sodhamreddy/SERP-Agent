@@ -690,8 +690,11 @@ def _gemini_results(keyword: str) -> list[SearchResult]:
         )
 
     endpoint = gemini_agent._get_endpoint(gemini_agent._get_model())
+    # Anchor the search to a country so positions are stable (the real backends
+    # default to gl=us). Configurable via GOOGLE_COUNTRY; defaults to United States.
+    country = os.getenv("GOOGLE_COUNTRY", "the United States")
     prompt = (
-        f"Search Google for: {keyword}\n"
+        f"Search Google as if searching from {country} (English): {keyword}\n"
         f"List as many organically ranking websites as you can find for this exact "
         f"query (aim for the top {MAX_RESULTS}), in ranking order with the best first. "
         "Give the domain of each ranking page. Do not include ads or map-pack listings."

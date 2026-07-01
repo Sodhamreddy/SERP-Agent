@@ -181,7 +181,8 @@ Client message
 |---|---|---|
 | UI | `templates/index.html` | ChatGPT-style chat (sidebar, conversation, composer) + Dashboard; consumes the `/chat` SSE stream |
 | Server | `app.py` | Routes; streams agent events; launches the full-scan batch; serves reports |
-| Agent | `agent_chat.py` | Planner, tool registry, `run_turn()` executor, answer synthesis |
+| Agent | `agent_chat.py` | Planner, router, `run_turn()` executor, answer synthesis (skills loaded via `skills/`) |
+| Skills | `skills/<name>/` | One folder per capability — `SKILL.md` (card + metadata) + `skill.py` (`run`/`render`). See [AGENTS.md](AGENTS.md) |
 | Core | `websearch_agent.py` | `search_keyword()` backend dispatch, `parse_ranking()`, `analyze_with_ollama()`, search providers |
 | Batch | `serp_agent.py` | 120-keyword catalog, `run_serp_agent()`, `save_excel()` |
 | Brain (primary) | **Gemini** (JSON mode) | Plans steps, routes intent, synthesizes replies, SEO analysis |

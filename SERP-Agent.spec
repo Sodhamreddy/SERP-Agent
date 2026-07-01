@@ -1,8 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-datas = [('templates', 'templates')]
+# Bundle templates AND the skills/ tree — the agent discovers capabilities by
+# scanning skills/<name>/SKILL.md on disk at runtime, so the cards must ship as data.
+datas = [('templates', 'templates'), ('skills', 'skills')]
 binaries = []
-hiddenimports = []
+# Skill modules are imported dynamically (importlib), which PyInstaller's static
+# analysis can't see — list them (and yaml, used by the loader) as hidden imports.
+_SKILL_NAMES = ['check_rank', 'compare_competitors', 'audit_website', 'recommend',
+                'list_keywords', 'full_scan', 'clarify', 'help']
+hiddenimports = ['yaml'] + [f'skills.{n}.skill' for n in _SKILL_NAMES]
 
 
 a = Analysis(

@@ -1,0 +1,59 @@
+{
+ "executive_summary": "The target domain, myassuredhomenursing.com, shows strong initial visibility for high-intent, localized keywords in Birmingham and Beverly Hills, consistently ranking in the top 2.0. However, performance drops significantly for broader, non-specific keywords like 'home care services in Ann Arbor, Mi' (position 4.7). To improve overall authority and capture higher-volume traffic, the site must focus on optimizing local content depth, improving on-page SEO for service pages, and addressing the geographical mismatch observed in the Beverly Hills results.",
+ "recommendations": [
+  "Develop comprehensive, unique local landing pages for every service area (e.g., Birmingham, MI, Beverly Hills, MI, Ann Arbor, MI) that go beyond simple service descriptions.",
+  "Implement a robust local SEO strategy by ensuring Name, Address, Phone (NAP) consistency across all listings and building local citations.",
+  "Optimize the title tags and H1s for the top-ranking pages to explicitly include the target city and service type (e.g., '24-Hour Home Care Services in Birmingham, MI')."
+ ],
+ "risks": [
+  "The inconsistent ranking performance (e.g., 1.1 vs 4.7) suggests a lack of content depth or authority signals for certain locations/keywords, risking poor organic visibility for key markets.",
+  "The presence of non-local competitors (e.g., Yelp, national directories) indicates that the site needs to establish stronger local E-E-A-T signals to compete with established local players."
+ ],
+ "competitor_insights": [
+  {
+   "competitor": "Comfort Keepers",
+   "why_they_rank": "They dominate local searches with highly specific, geo-targeted landing pages and strong local citations (e.g., 'Comfort Keepers In-Home Care in Beverly Hills, MI').",
+   "what_to_copy_ethically": "Use hyper-local content creation. Don't just list services; write about the community, local needs, and specific care challenges in that neighborhood."
+  },
+  {
+   "competitor": "Visiting Angels",
+   "why_they_rank": "They rank consistently across multiple locations, suggesting a strong, authoritative local SEO presence and high trust signals.",
+   "what_to_copy_ethically": "Build out a comprehensive resource center or blog that answers common, long-tail questions related to senior care in specific geographic areas."
+  },
+  {
+   "competitor": "Home Instead",
+   "what_to_copy": "The consistent use of local authority signals and comprehensive service listings across multiple cities."
+  }
+ ],
+ "actionable_tasks": [
+  "Audit the content for the top 5 target service areas to ensure each page is optimized for local search intent.",
+  "Create a dedicated 'Service Area' page for each major city served, linking to specific service pages within that city.",
+  "Develop a 'Why Choose Us' page that incorporates local testimonials and community involvement to build trust and authority."
+ ],
+ "source": "ollama",
+ "model": "gemma4:e4b",
+ "summary": {
+  "total_keywords": 10,
+  "ranked": 10,
+  "not_found": 0,
+  "page_1": 9,
+  "with_reviews": 0,
+  "locations_checked": 3,
+  "top_locations": [
+   {
+    "location": "Birmingham, MI",
+    "keywords": 4
+   },
+   {
+    "location": "Beverly Hills, MI",
+    "keywords": 4
+   },
+   {
+    "location": "Ann Arbor, MI",
+    "keywords": 2
+   }
+  ]
+ },
+ "domain": "myassuredhomenursing.com",
+ "run_date": "18/06/2026"
+}

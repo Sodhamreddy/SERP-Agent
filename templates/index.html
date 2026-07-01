@@ -456,6 +456,13 @@
     .an-table td:first-child, .an-table th:first-child { text-align: left; }
     .an-up { color: var(--green); font-weight: 700; }
     .an-down { color: var(--red); font-weight: 700; }
+    .llm-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+    .llm-chip { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); }
+    .llm-chip.on { color: var(--green); border-color: var(--green); }
+    .llm-chip.off { color: var(--muted); }
+    .llm-check { display: flex; gap: 8px; margin-bottom: 10px; }
+    .llm-check input { flex: 1; border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; outline: none; }
+    .llm-check button { background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
     .sb-spacer { flex: 1; }
     .sb-footer { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
     .sb-toggle { display: flex; background: rgba(255,255,255,.06); border-radius: 99px; padding: 3px; }
@@ -629,6 +636,14 @@
     </div>
 
     <div class="sb-group">
+      <div class="sb-label">Insights</div>
+      <button class="sb-item" onclick="openComp()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Competitor analysis</button>
+      <button class="sb-item" onclick="openLLM()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6h6.2c.1-.6.4-1.2.9-1.6A7 7 0 0 0 12 2z"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> LLM overview</button>
+    </div>
+
+    <div class="sb-group">
       <div class="sb-label">Reports <span id="sbReportCount" style="color:#475569;"></span></div>
       <div class="sb-reports" id="sbReports"></div>
     </div>
@@ -729,6 +744,28 @@
       <button class="pv-x" onclick="closeAnalysis()" title="Close">&times;</button>
     </div>
     <div class="pv-body an-body" id="anBody"></div>
+  </div>
+</div>
+
+<!-- ── COMPETITOR ANALYSIS ── -->
+<div class="overlay" id="compModal">
+  <div class="modal preview-modal" style="max-width:900px;">
+    <div class="pv-head">
+      <h3 id="compTitle">Competitor analysis</h3>
+      <button class="pv-x" onclick="closeComp()" title="Close">&times;</button>
+    </div>
+    <div class="pv-body an-body" id="compBody"></div>
+  </div>
+</div>
+
+<!-- ── LLM OVERVIEW ── -->
+<div class="overlay" id="llmModal">
+  <div class="modal preview-modal" style="max-width:900px;">
+    <div class="pv-head">
+      <h3 id="llmTitle">LLM overview</h3>
+      <button class="pv-x" onclick="closeLLM()" title="Close">&times;</button>
+    </div>
+    <div class="pv-body an-body" id="llmBody"></div>
   </div>
 </div>
 
@@ -1183,6 +1220,142 @@
     }
 
     return h || '<div class="pv-loading">The analysis file is empty.</div>';
+  }
+
+  /* ── Competitor analysis dashboard (aggregate footprint from the latest scan) ── */
+  function openComp() {
+    const body = document.getElementById('compBody');
+    body.innerHTML = '<div class="pv-loading">Building competitor footprint…</div>';
+    document.getElementById('compModal').classList.add('show');
+    fetch('/competitors')
+      .then(r => r.json())
+      .then(d => { body.innerHTML = renderComp(d); body.scrollTop = 0; })
+      .catch(err => { body.innerHTML = '<div class="pv-loading">' + esc(err.message) + '</div>'; });
+  }
+  function closeComp() { document.getElementById('compModal').classList.remove('show'); }
+  document.getElementById('compModal').addEventListener('click', (e) => {
+    if (e.target.id === 'compModal') closeComp();
+  });
+
+  function renderComp(d) {
+    if (!d.ok) return '<div class="pv-loading">' + esc(d.error || 'No competitor data yet — run a scan first.') + '</div>';
+    let h = `<div class="an-meta">${esc(d.domain || '')} · latest scan ${esc(d.generated_at || '')} · ${esc(d.report || '')}</div>`;
+    if (d.matched_client === false)
+      h += `<div class="rc-note" style="margin-bottom:10px;">The latest scan on file may belong to another client. Run a scan for this client for an exact footprint.</div>`;
+    const stat = (v, l) => `<div class="an-stat"><div class="v">${esc(String(v ?? 0))}</div><div class="l">${l}</div></div>`;
+    h += `<div class="an-sec"><h4>Our position</h4><div class="an-stats">` +
+      stat(d.total_keywords, 'Keywords') + stat(d.ranked, 'Ranked') +
+      stat(d.not_found, 'Not found') + stat(d.our_avg_position ?? '—', 'Avg position') +
+      stat(d.unique_competitors, 'Rival domains') + `</div></div>`;
+
+    const comps = d.competitors || [];
+    if (!comps.length) return h + '<div class="pv-loading">No competitors were captured in this scan.</div>';
+    h += `<div class="an-sec"><h4>Who we compete with</h4>` +
+      `<table class="an-table"><tr><th style="text-align:left;">Competitor</th><th>Keywords</th><th>Outranks us</th><th>Best</th><th>Avg</th></tr>` +
+      comps.map(c =>
+        `<tr><td style="text-align:left;">${esc(c.domain)}</td><td>${c.appearances}</td>` +
+        `<td class="${c.beats_us ? 'an-down' : ''}">${c.beats_us}</td>` +
+        `<td>${c.best_position ?? '—'}</td><td>${c.avg_position ?? '—'}</td></tr>`).join('') +
+      `</table></div>`;
+
+    const withKw = comps.filter(c => (c.keywords || []).length).slice(0, 6);
+    if (withKw.length)
+      h += `<div class="an-sec"><h4>Where they show up</h4>` + withKw.map(c =>
+        `<div class="an-card"><b>${esc(c.domain)}</b><br>${(c.keywords || []).map(esc).join(' · ')}</div>`).join('') + `</div>`;
+    return h;
+  }
+
+  /* ── LLM overview dashboard (AI-search citation visibility from the latest scan) ── */
+  function openLLM() {
+    const body = document.getElementById('llmBody');
+    body.innerHTML = '<div class="pv-loading">Reading AI-search visibility…</div>';
+    document.getElementById('llmModal').classList.add('show');
+    fetch('/llm-overview')
+      .then(r => r.json())
+      .then(d => { body.innerHTML = renderLLM(d); body.scrollTop = 0; loadPlatformStatus(); })
+      .catch(err => { body.innerHTML = '<div class="pv-loading">' + esc(err.message) + '</div>'; });
+  }
+
+  /* Live multi-platform check: ask each AI platform a keyword, show our position on each. */
+  function loadPlatformStatus() {
+    const el = document.getElementById('llmPlatformStatus');
+    if (!el) return;
+    fetch('/ai-platforms/status').then(r => r.json()).then(d => {
+      el.innerHTML = (d.platforms || []).map(p =>
+        `<span class="llm-chip ${p.enabled ? 'on' : 'off'}" title="${esc(p.reason || 'Live')}">` +
+        `${p.enabled ? '●' : '○'} ${esc(p.name)}</span>`).join('');
+    }).catch(() => {});
+  }
+
+  function checkPlatforms() {
+    const inp = document.getElementById('llmKwInput');
+    const out = document.getElementById('llmPlatformResult');
+    const kw = (inp.value || '').trim();
+    if (!kw) { inp.focus(); return; }
+    out.innerHTML = '<div class="pv-loading">Querying each AI platform live — this can take a few seconds…</div>';
+    fetch('/ai-platforms/check?keyword=' + encodeURIComponent(kw))
+      .then(r => r.json())
+      .then(d => { out.innerHTML = renderPlatformCheck(d); })
+      .catch(err => { out.innerHTML = '<div class="pv-loading">' + esc(err.message) + '</div>'; });
+  }
+
+  function renderPlatformCheck(d) {
+    if (!d.ok) return '<div class="pv-loading">' + esc(d.error || 'Could not run the check.') + '</div>';
+    const rows = (d.platforms || []).map(p => {
+      const pos = p.enabled
+        ? (p.cited ? `<span class="rc-pos">${esc(String(p.position))}</span>` : '<span class="rc-nf">Not cited</span>')
+        : '<span class="rc-nf">Disabled</span>';
+      return `<tr><td style="text-align:left;">${esc(p.name)}</td><td>${pos}</td>` +
+        `<td style="text-align:left;color:var(--muted);font-size:12px;">${esc(p.note || '')}</td></tr>`;
+    }).join('');
+    return `<div class="an-meta" style="margin:8px 0;">Position of ${esc(d.target_domain)} for “${esc(d.keyword)}” on each platform</div>` +
+      `<table class="an-table"><tr><th style="text-align:left;">Platform</th><th>Our position</th><th style="text-align:left;">Notes</th></tr>${rows}</table>`;
+  }
+  function closeLLM() { document.getElementById('llmModal').classList.remove('show'); }
+  document.getElementById('llmModal').addEventListener('click', (e) => {
+    if (e.target.id === 'llmModal') closeLLM();
+  });
+
+  function renderLLM(d) {
+    // Live multi-platform check sits at the top — it works even before any scan exists.
+    let h = `<div class="an-sec"><h4>Across AI platforms — live check</h4>` +
+      `<div id="llmPlatformStatus" class="llm-chips"></div>` +
+      `<div class="llm-check"><input id="llmKwInput" type="text" placeholder="Enter a keyword, e.g. home care services in Detroit, MI" ` +
+      `onkeydown="if(event.key==='Enter')checkPlatforms()" />` +
+      `<button onclick="checkPlatforms()">Check position on each AI</button></div>` +
+      `<div id="llmPlatformResult"></div></div>`;
+    if (!d.ok) return h + '<div class="pv-loading">' + esc(d.error || 'No scan yet — the summary below appears once you run a scan. The live check above works now.') + '</div>';
+    h += `<div class="an-meta">${esc(d.platform || '')} · ${esc(d.domain || '')} · latest scan ${esc(d.generated_at || '')}</div>`;
+    if (d.matched_client === false)
+      h += `<div class="rc-note" style="margin-bottom:10px;">The latest scan on file may belong to another client.</div>`;
+    const b = d.buckets || {};
+    const stat = (v, l) => `<div class="an-stat"><div class="v">${esc(String(v ?? 0))}</div><div class="l">${l}</div></div>`;
+    h += `<div class="an-sec"><h4>AI citation visibility</h4><div class="an-stats">` +
+      stat(d.citation_rate != null ? d.citation_rate + '%' : '—', 'Cited rate') +
+      stat(d.cited, 'Cited') + stat(d.total_keywords, 'Keywords') +
+      stat(d.avg_cited_position ?? '—', 'Avg cited pos') + `</div></div>`;
+    h += `<div class="an-sec"><h4>Where AI cites us</h4><div class="an-stats">` +
+      stat(b.top3, 'Top 3') + stat(b.top10, 'Positions 4–10') +
+      stat(b.deeper, 'Deeper') + stat(b.not_cited, 'Not cited') + `</div></div>`;
+    if (d.approximate)
+      h += `<div class="rc-note" style="margin-bottom:10px;">Positions are citation ranks from ${esc(d.platform || 'the AI source')}, not exact Google rank. Single platform today — built so more AI platforms can be added.</div>`;
+
+    const also = d.also_cited || [];
+    if (also.length)
+      h += `<div class="an-sec"><h4>Also cited by AI</h4>` +
+        `<table class="an-table"><tr><th style="text-align:left;">Domain</th><th>Keywords</th><th>Outranks us</th></tr>` +
+        also.map(c => `<tr><td style="text-align:left;">${esc(c.domain)}</td><td>${c.appearances}</td><td class="${c.beats_us ? 'an-down' : ''}">${c.beats_us}</td></tr>`).join('') +
+        `</table></div>`;
+
+    const kws = d.keywords || [];
+    if (kws.length)
+      h += `<div class="an-sec"><h4>Per keyword</h4><table class="an-table">` +
+        `<tr><th style="text-align:left;">Keyword</th><th style="text-align:left;">Location</th><th>AI position</th></tr>` +
+        kws.slice(0, 120).map(k =>
+          `<tr><td style="text-align:left;">${esc(k.keyword)}</td><td style="text-align:left;">${esc(k.location || '—')}</td>` +
+          `<td class="${k.cited ? 'an-up' : 'an-down'}">${esc(String(k.position))}</td></tr>`).join('') +
+        `</table></div>`;
+    return h;
   }
 
   /* ── Clients (multi-client profiles + switcher) ── */
@@ -1767,6 +1940,40 @@
       let html = `<div class="rc-title">Recommendations</div>`;
       recs.slice(0, 6).forEach(r => { html += `<div class="rc-comp">• ${esc(r)}</div>`; });
       card.innerHTML = html;
+    } else if (tool === 'competitor_analysis') {
+      if (data.mode === 'live') {
+        let html = `<div class="rc-title">Competitors</div>`;
+        html += `<div class="rc-row"><span>${esc(data.keyword)}</span><span>${data.target_found ? 'We rank ' + esc(String(data.target_position)) : 'We are not ranking'}</span></div>`;
+        (data.competitors || []).slice(0, 5).forEach(c => {
+          html += `<div class="rc-comp"><strong>#${c.position}</strong> ${esc(c.title || c.url)}</div>`;
+        });
+        card.innerHTML = html;
+      } else {
+        let html = `<div class="rc-title">Competitor footprint</div>`;
+        html += `<div class="rc-row"><span>Scan</span><span>${esc(data.generated_at || '')}</span></div>`;
+        html += `<div class="rc-row"><span>Rival domains</span><span>${data.unique_competitors} across ${data.total_keywords} keywords</span></div>`;
+        (data.competitors || []).slice(0, 5).forEach(c => {
+          html += `<div class="rc-comp"><strong>${esc(c.domain)}</strong> — ${c.appearances} kw, outranks us on ${c.beats_us}</div>`;
+        });
+        html += `<div class="rc-note">Open <b>Insights → Competitor analysis</b> for the full table.</div>`;
+        card.innerHTML = html;
+      }
+    } else if (tool === 'llm_overview') {
+      if (data.mode === 'live') {
+        let html = `<div class="rc-title">AI visibility</div>`;
+        html += `<div class="rc-row"><span>Platform</span><span>${esc(data.platform || '')}</span></div>`;
+        html += `<div class="rc-row"><span>${esc(data.keyword)}</span>${data.cited ? `<span class="rc-pos">${esc(String(data.position))}</span>` : '<span class="rc-nf">Not cited</span>'}</div>`;
+        card.innerHTML = html;
+      } else {
+        const b = data.buckets || {};
+        let html = `<div class="rc-title">LLM overview</div>`;
+        html += `<div class="rc-row"><span>Platform</span><span>${esc(data.platform || '')}</span></div>`;
+        html += `<div class="rc-row"><span>Cited</span><span>${data.cited}/${data.total_keywords} (${data.citation_rate}%)</span></div>`;
+        html += `<div class="rc-row"><span>Top 3 / 4–10</span><span>${b.top3 || 0} / ${b.top10 || 0}</span></div>`;
+        if (data.avg_cited_position != null) html += `<div class="rc-row"><span>Avg cited position</span><span>${esc(String(data.avg_cited_position))}</span></div>`;
+        html += `<div class="rc-note">Open <b>Insights → LLM overview</b> for the per-keyword breakdown.</div>`;
+        card.innerHTML = html;
+      }
     } else {
       return;   // list_keywords / help render fine as plain answer text
     }
