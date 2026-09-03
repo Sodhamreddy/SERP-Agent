@@ -22,3 +22,8 @@ serp_agent.log
 results/*.xlsx
 results/*.csv
 results/_progress*.json
+
+# Generated product docs / decks — local only, never pushed
+Excelliq_Product_Docs/
+SERP_Agent_Product_Docs/
+*.pdf

@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 
-_REPORT_GLOB = "results/AHNS SERP *.csv"
+_REPORT_GLOB = "results/* SERP *.csv"
 _TOP_COMPETITORS = 15
 
 # A backend whose positions are citations, not exact Google rank.

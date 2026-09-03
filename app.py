@@ -262,13 +262,8 @@ def suggest():
 
 @app.route("/reports")
 def list_reports():
-    """Filenames of generated reports (newest first) for the sidebar list.
-    Also says which reports have a saved AI analysis alongside them."""
-    have_analysis = {os.path.basename(f) for f in glob.glob("results/AHNS SERP *.analysis.json")}
-    files = sorted([os.path.basename(f) for f in glob.glob("results/AHNS SERP *.xlsx")],
-                   reverse=True)
-    analyses = [f for f in files if f.replace(".xlsx", ".analysis.json") in have_analysis]
-    return jsonify({"reports": files, "analyses": analyses})
+    """SERP scan reports for the sidebar — newest run first, each labelled with its client."""
+    return jsonify({"reports": _scan_reports()})
 
 
 @app.route("/competitors")
@@ -373,13 +368,87 @@ def chats_delete_route():
     return jsonify({"ok": chats.delete_chat(email, cid)})
 
 
-# ── Filename validation ───────────────────────────────────────
-_VALID_REPORT = re.compile(r'^AHNS SERP [\d]{2}-[\d]{2}-[\d]{4} [\d]{2}-[\d]{2}-[\d]{2}\.(xlsx|csv)$')
+# ── Report filenames ──────────────────────────────────────────
+# Scan reports are saved as "<Client> SERP DD-MM-YYYY HH-MM-SS.xlsx", so the
+# client name shows up in the sidebar and in the downloaded file. Files written
+# before multi-client support carry the old "AHNS " prefix and still parse.
+_VALID_REPORT = re.compile(
+    r'^(?P<client>[A-Za-z0-9][A-Za-z0-9 &._-]{0,49}) SERP '
+    r'(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4}) '
+    r'(?P<hh>\d{2})-(?P<mm>\d{2})-(?P<ss>\d{2})\.(xlsx|csv)$'
+)
+_LEGACY_LABELS = {"ahns": "Assured Home Nursing"}
+
 
 def _validate_report_filename(filename: str) -> bool:
-    """Accept only exact AHNS SERP ... .xlsx filenames — prevents path traversal."""
+    """Accept only exact "<Client> SERP ..." report names — prevents path traversal."""
     safe = os.path.basename(filename)
     return bool(_VALID_REPORT.match(safe))
+
+
+def _client_file_label(name: str | None) -> str:
+    """Filename-safe client label used as the report prefix."""
+    import serp_agent as sa
+    return sa.report_label(name)
+
+
+def _client_name_map() -> dict[str, str]:
+    """Report prefix (lowercased) → the client's real name."""
+    import serp_agent as sa
+    names = dict(_LEGACY_LABELS)
+    try:
+        for c in sa.load_clients().get("clients", []):
+            if c.get("name"):
+                names[_client_file_label(c["name"]).lower()] = c["name"]
+    except Exception:  # noqa: BLE001 — a broken clients.json must not hide reports
+        pass
+    return names
+
+
+def _scan_reports(limit: int = 60) -> list[dict]:
+    """Saved SERP scan reports, newest run first, each with its client and run time.
+
+    Only files matching the report naming pattern are listed — samples, CSVs and
+    saved analyses never show up in the sidebar.
+    """
+    names = _client_name_map()
+    try:
+        entries = os.listdir("results")
+    except OSError:
+        return []
+    out = []
+    for name in entries:
+        m = _VALID_REPORT.match(name)
+        if not m or not name.endswith(".xlsx"):
+            continue
+        g = m.groupdict()
+        label = g["client"]
+        out.append({
+            "file":   name,
+            "client": names.get(label.lower(), label),
+            "date":   f"{g['d']}-{g['m']}-{g['y']}",
+            "time":   f"{g['hh']}:{g['mm']}",
+            "ts":     f"{g['y']}{g['m']}{g['d']}{g['hh']}{g['mm']}{g['ss']}",
+        })
+    out.sort(key=lambda r: r["ts"], reverse=True)   # real timestamp, not filename order
+    return out[:limit]
+
+
+def _client_report_paths(client_name: str, ext: str) -> list[str]:
+    """This client's saved report paths, including files under the legacy prefix."""
+    names = _client_name_map()
+    try:
+        entries = os.listdir("results")
+    except OSError:
+        return []
+    out = []
+    for name in entries:
+        m = _VALID_REPORT.match(name)
+        if m and name.endswith(ext):
+            label = m.group("client")
+            if names.get(label.lower(), label) == client_name:
+                out.append(os.path.join("results", name))
+    return out
 
 
 # ── Routes ────────────────────────────────────────────────────
@@ -392,11 +461,7 @@ def favicon():
 @app.route("/")
 def index():
     try:
-        reports = sorted(
-            [os.path.basename(f) for f in glob.glob("results/AHNS SERP *.xlsx")],
-            reverse=True
-        )
-        return render_template("index.html", reports=reports)
+        return render_template("index.html", reports=_scan_reports())
     except Exception as e:
         return f"<pre>ERROR: {e}\nBASE_DIR: {BASE_DIR}\nCWD: {os.getcwd()}</pre>", 500
 
@@ -420,7 +485,7 @@ def run():
         kws = kws[:limit]
     if not kws:
         return jsonify({"ok": False, "msg": "This project has no keywords yet."})
-    started = _start_full_scan(kws, active["domain"])
+    started = _start_full_scan(kws, active["domain"], active.get("name"))
     if not started:
         return jsonify({"ok": False, "msg": "Agent is already running."})
     return jsonify({"ok": True, "count": len(kws)})
@@ -689,7 +754,7 @@ def chat_tools():
     return jsonify({"tools": agent_chat.tool_catalog()})
 
 
-def _start_full_scan(keywords, domain) -> bool:
+def _start_full_scan(keywords, domain, client_name=None) -> bool:
     """Kick off the heavy keyword batch for the given client. One scan at a time.
 
     Returns True if the scan was started, False if one is already running.
@@ -706,7 +771,8 @@ def _start_full_scan(keywords, domain) -> bool:
             _log_queue.get_nowait()
         except Exception:
             break
-    threading.Thread(target=_run_agent, args=(keywords, domain), daemon=True).start()
+    threading.Thread(target=_run_agent, args=(keywords, domain, client_name),
+                     daemon=True).start()
     return True
 
 
@@ -772,7 +838,7 @@ def chat():
             for event in agent_chat.run_turn(message, ctx):
                 # The full_scan tool only signals intent — actually launch the batch here.
                 if event.get("step") == "action" and event.get("action") == "full_scan":
-                    started = _start_full_scan(scan_kw, scan_domain)
+                    started = _start_full_scan(scan_kw, scan_domain, used.get("name"))
                     event = {"step": "action", "action": "full_scan", "started": started}
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as exc:  # noqa: BLE001
@@ -936,7 +1002,7 @@ def _build_run_comparison(rows: list, prev_csv_path: str) -> dict | None:
     return {"previous_run": os.path.basename(prev_csv_path), "locations": locations}
 
 
-def _run_agent(keywords=None, domain=None):
+def _run_agent(keywords=None, domain=None, client_name=None):
     global _agent_running, _last_rows, _last_excel, _last_agent_report, _progress
 
     import serp_agent as sa
@@ -960,12 +1026,14 @@ def _run_agent(keywords=None, domain=None):
 
         os.makedirs("results", exist_ok=True)
         ts         = datetime.now().strftime("%d-%m-%Y %H-%M-%S")
-        excel_path = f"results/AHNS SERP {ts}.xlsx"
-        csv_path   = f"results/AHNS SERP {ts}.csv"
+        client     = client_name or sa.CLIENT_NAME
+        label      = _client_file_label(client)
+        excel_path = f"results/{label} SERP {ts}.xlsx"
+        csv_path   = f"results/{label} SERP {ts}.csv"
         run_date   = datetime.now().strftime("%d/%m/%Y")
 
-        # Compare against the most recent previous run (before this run's CSV exists).
-        prev_csvs  = glob.glob("results/AHNS SERP *.csv")
+        # Compare against THIS client's most recent run (before this run's CSV exists).
+        prev_csvs  = _client_report_paths(client, ".csv")
         comparison = (_build_run_comparison(rows, max(prev_csvs, key=os.path.getmtime))
                       if prev_csvs else None)
 
@@ -1008,7 +1076,7 @@ def _run_agent(keywords=None, domain=None):
         if comparison:
             _last_agent_report["comparison"] = comparison
         try:
-            with open(f"results/AHNS SERP {ts}.analysis.json", "w", encoding="utf-8") as fh:
+            with open(f"results/{label} SERP {ts}.analysis.json", "w", encoding="utf-8") as fh:
                 json.dump(_last_agent_report, fh, ensure_ascii=False, indent=1)
         except Exception as exc:  # noqa: BLE001
             _log(f"Could not save the analysis file: {exc}")

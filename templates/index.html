@@ -1048,30 +1048,22 @@
     fetch('/reports').then(r => r.json()).then(d => {
       const el = document.getElementById('sbReports');
       const cnt = document.getElementById('sbReportCount');
-      const files = d.reports || [];
-      const hasAnalysis = new Set(d.analyses || []);
-      if (cnt) cnt.textContent = files.length ? `(${files.length})` : '';
+      // Each entry: { file, client, date, time } — already newest-run-first from /reports.
+      const items = d.reports || [];
+      if (cnt) cnt.textContent = items.length ? `(${items.length})` : '';
       el.innerHTML = '';
-      files.slice(0, 40).forEach(f => {
-        // "AHNS SERP 05-06-2026 11-01-32.xlsx" → date "05-06-2026", time "11:01"
-        const m = f.match(/(\d{2}-\d{2}-\d{4}) (\d{2})-(\d{2})/);
-        const date = m ? m[1] : f.replace('.xlsx', '');
-        const time = m ? `${m[2]}:${m[3]}` : '';
+      items.slice(0, 40).forEach(it => {
+        const f = it.file;
         const a = document.createElement('div');
         a.className = 'sb-report';
-        a.title = 'Preview ' + f;
+        a.title = `${it.client} — SERP report ${it.date} ${it.time}`;
         a.onclick = () => openPreview(f);
         a.innerHTML =
           `<span class="rp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>` +
-          `<span class="rp-meta"><span class="rp-date">${esc(date)}</span><span class="rp-sub">${esc(time)} · Excel report</span></span>` +
-          (hasAnalysis.has(f)
-            ? `<span class="rp-dl" title="View AI recommendations" data-an="1">` +
-              `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg></span>`
-            : '') +
+          `<span class="rp-meta"><span class="rp-date">${esc(it.client)}</span>` +
+          `<span class="rp-sub">${esc(it.date)} · ${esc(it.time)}</span></span>` +
           `<a class="rp-dl" href="/download/${encodeURIComponent(f)}" title="Download ${esc(f)}" onclick="event.stopPropagation()">` +
           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>`;
-        const anBtn = a.querySelector('[data-an]');
-        if (anBtn) anBtn.onclick = (ev) => { ev.stopPropagation(); openAnalysis(f); };
         el.appendChild(a);
       });
     }).catch(() => {});

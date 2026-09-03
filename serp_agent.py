@@ -20,6 +20,7 @@ Run:
 from __future__ import annotations
 
 import os
+import re
 import sys
 import json
 import logging
@@ -401,6 +402,19 @@ def _default_client() -> dict:
 _dc = _default_client()
 TARGET_DOMAIN = _dc.get("domain") or _DEFAULT_DOMAIN
 KEYWORDS: list[tuple[str, str]] = [(loc, kw) for loc, kw in _normalize_pairs(_dc.get("keywords"))]
+CLIENT_NAME = _dc.get("name") or "SERP Agent"
+
+
+def report_label(name: str | None) -> str:
+    """Filename-safe client label — the "<Client> SERP <ts>" report prefix.
+
+    Keeping the client in the filename means the sidebar AND the downloaded
+    file both say who the report is for.
+    """
+    safe = re.sub(r"[^A-Za-z0-9 &._-]", " ", str(name or ""))
+    safe = re.sub(r"\s+", " ", safe).strip()
+    safe = " ".join(w for w in safe.split() if w.upper() != "SERP")   # keep the split unambiguous
+    return safe[:50].strip() or "SERP Agent"
 
 
 def run_serp_agent(keywords: list[tuple[str, str]], domain: str | None = None) -> list[dict]:
@@ -654,8 +668,9 @@ def _save_progress(done: dict[str, dict]) -> None:
 def _write_report(rows: list[dict], run_date: str, ts: str) -> tuple[str, str]:
     df = pd.DataFrame([{k: v for k, v in r.items() if k != "_ok"} for r in rows])
     os.makedirs("results", exist_ok=True)
-    excel_path = f"results/AHNS SERP {ts}.xlsx"
-    csv_path   = f"results/AHNS SERP {ts}.csv"
+    label      = report_label(CLIENT_NAME)
+    excel_path = f"results/{label} SERP {ts}.xlsx"
+    csv_path   = f"results/{label} SERP {ts}.csv"
     save_excel(df, excel_path, run_date)
     df.to_csv(csv_path, index=False)
 
